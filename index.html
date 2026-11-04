@@ -438,7 +438,7 @@ function painelHTML(){
     <div class="head"><h2>Lucro por dia</h2><span class="muted small">${S.periodo==='dia'?fmtMes(mes):fmtFaixa(p.de,p.ate)}</span></div>
     <div id="chart" data-de="${grafico.de}" data-ate="${grafico.ate}"></div>
   </section>
-  ${equipeHTML(p,m,c,mes)}
+  ${equipeHTML(m,c,mes)}
   ${clientesHTML(p)}`;
 }
 function clientesHTML(p){
@@ -453,14 +453,12 @@ function clientesHTML(p){
     ${sem.length?`<details style="margin-top:12px"><summary>${sem.length} clientes sem valor</summary><p class="small muted" style="margin:6px 0 0">${sem.map(l=>esc(l.cliente)).join(', ')}</p></details>`:''}
   </section>`;
 }
-function equipeHTML(p,m,c,mes){
-  if(!c.funcionarias.length)return `<section class="panel"><div class="head"><h2>Equipe</h2></div><p class="muted" style="margin:0 0 10px">Cadastre as funcionárias para ver a comissão de cada uma por período e por mês.</p><button class="btn" data-go="custos">Adicionar funcionária</button></section>`;
-  const mostraPeriodo=S.periodo!=='mes';
-  const colPeriodo={dia:'Comissão dia','7d':'Comissão 7 dias',custom:'Comissão período'}[S.periodo];
+function equipeHTML(m,c,mes){
+  if(!c.funcionarias.length)return `<section class="panel"><div class="head"><h2>Equipe</h2></div><p class="muted" style="margin:0 0 10px">Cadastre as funcionárias para ver a comissão de cada uma no mês.</p><button class="btn" data-go="custos">Adicionar funcionária</button></section>`;
   const linhas=c.funcionarias.map(f=>{
     const ms=cents(m.porFunc[f.id]||0);
-    return `<tr><td>${esc(f.nome)}<br><span class="muted small">${(+f.pct||0).toLocaleString('pt-BR')}% ${f.base==='carteira'?'dos clientes dela':'do total'}</span></td>${mostraPeriodo?`<td>${brl(p.porFunc[f.id]||0)}</td>`:''}<td>${brl(ms)}</td><td>${brl(+f.salario||0)}</td><td><b>${brl((+f.salario||0)+ms)}</b></td></tr>`}).join('');
-  return `<section class="panel"><div class="head"><h2>Equipe</h2><span class="muted small">Salário e a pagar de ${fmtMes(mes)}</span></div><div class="scroll"><table><thead><tr><th>Funcionária</th>${mostraPeriodo?`<th>${colPeriodo}</th>`:''}<th>Comissão mês</th><th>Salário</th><th>A pagar</th></tr></thead><tbody>${linhas}</tbody></table></div></section>`;
+    return `<tr><td>${esc(f.nome)}<br><span class="muted small">${(+f.pct||0).toLocaleString('pt-BR')}% ${f.base==='carteira'?'dos clientes dela':'do total'}</span></td><td>${brl(ms)}</td><td>${brl(+f.salario||0)}</td><td><b>${brl((+f.salario||0)+ms)}</b></td></tr>`}).join('');
+  return `<section class="panel"><div class="head"><h2>Equipe</h2><span class="muted small">${fmtMes(mes)}</span></div><div class="scroll"><table><thead><tr><th>Funcionária</th><th>Comissão mês</th><th>Salário</th><th>A pagar</th></tr></thead><tbody>${linhas}</tbody></table></div></section>`;
 }
 function mesesOpts(){
   const ks=[...Object.keys(S.dias).map(d=>d.slice(0,7)),...Object.keys(S.custos),mesAtual()].sort();
