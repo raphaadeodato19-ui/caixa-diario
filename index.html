@@ -216,13 +216,13 @@ function parseWorkbook(buf,nome){
         const r=rows[i]||[];const n=norm(r[ci]);if(!n)continue;
         if(n.startsWith('TOTAL')){arq=parseMoney(r[j]);break}
         const v=parseMoney(r[j]);
-        if(mapa.has(n)){avisos.push(`Cliente repetido em ${fmtDia(d)}: ${n}. Os valores foram somados.`);mapa.get(n).valor=cents(mapa.get(n).valor+(v||0))}
+        if(mapa.has(n)){avisos.push(`Parceiro repetido em ${fmtDia(d)}: ${n}. Os valores foram somados.`);mapa.get(n).valor=cents(mapa.get(n).valor+(v||0))}
         else mapa.set(n,{cliente:String(r[ci]).trim().replace(/\s+/g,' '),valor:cents(v||0)});
       }
       const linhas=[...mapa.values()];
       if(!linhas.some(l=>l.valor!==0)){ignoradas++;continue}
       const total=cents(linhas.reduce((a,l)=>a+l.valor,0));
-      if(arq!=null&&Math.abs(arq-total)>0.009)avisos.push(`Em ${fmtDia(d)} a soma dos clientes dá ${brl(total)}, mas a linha TOTAL da planilha mostra ${brl(arq)}. A dash usa a soma dos clientes.`);
+      if(arq!=null&&Math.abs(arq-total)>0.009)avisos.push(`Em ${fmtDia(d)} a soma dos parceiros dá ${brl(total)}, mas a linha TOTAL da planilha mostra ${brl(arq)}. A dash usa a soma dos parceiros.`);
       if(dias.has(d))avisos.push(`A data ${fmtDia(d)} aparece mais de uma vez. Ficou a última coluna lida.`);
       dias.set(d,{data:d,linhas,total,arquivo:nome,totalArquivo:arq});
     }
@@ -381,7 +381,7 @@ function prevHTML(){
     const ant=S.dias[d.data];
     return `<tr><td>${fmtDia(d.data)}</td><td>${d.linhas.filter(l=>l.valor!==0).length} de ${d.linhas.length}</td><td>${brl(d.total)}</td><td class="left">${ant?`Substitui ${brl(ant.total)}`:'Dia novo'}</td></tr>`}).join('');
   return `<section class="panel"><div class="head"><h2>Confira antes de salvar</h2></div>
-    <div class="scroll"><table><thead><tr><th>Data</th><th>Clientes com valor</th><th>Total</th><th class="left">Situação</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="scroll"><table><thead><tr><th>Data</th><th>Parceiros com valor</th><th>Ganho</th><th class="left">Situação</th></tr></thead><tbody>${rows}</tbody></table></div>
     ${p.ignoradas?`<p class="muted small">${p.ignoradas} coluna(s) de data sem valores foram ignoradas.</p>`:''}
     ${p.avisos.map(a=>`<div class="note warn" style="margin-top:8px">${esc(a)}</div>`).join('')}
     <div class="savebar" style="margin-top:14px"><span></span><span style="display:flex;gap:8px"><button class="btn" data-act="cancelaPrev">Cancelar</button><button class="btn primary" data-act="salvaPrev">Salvar ${p.dias.length===1?'dia':p.dias.length+' dias'}</button></span></div></section>`;
@@ -407,7 +407,7 @@ function painelHTML(){
   const custoNota=S.periodo==='dia'?`(${brl(m.custoMes)} ÷ ${c.dias} dias)`:`(${p.n} ${p.n===1?'dia':'dias'} com planilha)`;
   const grafico=S.periodo==='dia'?limitesMes(mes):faixa;
   return `${erro}${S.prev?prevHTML():dropHTML(false)}
-  ${semCustos?`<div class="note warn"><span>Sem custos cadastrados, o lucro abaixo ainda é só o total da planilha.</span><button class="link" data-go="custos">Cadastrar gastos e funcionárias</button></div>`:''}
+  ${semCustos?`<div class="note warn"><span>Sem custos cadastrados, o lucro abaixo ainda é só o ganho das operações.</span><button class="link" data-go="custos">Cadastrar gastos e funcionárias</button></div>`:''}
   <section class="panel">
     <div class="head"><h2>Lucro</h2>
       <div class="daynav"><button class="btn small" data-act="dia" data-to="${lista[i-1]||''}" ${i>0?'':'disabled'} aria-label="Dia anterior">‹</button>
@@ -430,7 +430,7 @@ function painelHTML(){
       <div><div class="eyebrow">${rotulo}</div><div class="hero ${p.lucro<0?'neg':''}">${brl(p.lucro)}</div>
         <span class="pill ${p.lucro<0?'neg':''}">${p.lucro<0?'▼ No vermelho':'▲ No azul'}</span></div>
       <div class="ledger">
-        <div><span>Total da planilha</span><span>${brl(p.receita)}</span></div>
+        <div><span>Ganho das operações</span><span>${brl(p.receita)}</span></div>
         <div><span>− Comissões</span><span>${brl(p.comissoes)}</span></div>
         <div><span>− Custos <span class="muted small">${custoNota}</span></span><span>${brl(p.custo)}</span></div>
         <div><span>= Lucro</span><span>${brl(p.lucro)}</span></div>
@@ -454,16 +454,16 @@ function clientesHTML(p){
   const com=todos.filter(l=>l.valor!==0),sem=todos.filter(l=>l.valor===0);
   const max=Math.max(1e-9,...com.map(l=>Math.abs(l.valor)));
   const tot=com.reduce((a,l)=>a+l.valor,0)||1;
-  return `<section class="panel"><div class="head"><h2>Clientes</h2><span class="muted small">${fmtFaixa(p.de,p.ate)}</span></div>
-    <div class="rank">${com.map(l=>`<div class="row"><span style="overflow-wrap:anywhere">${esc(l.cliente)}</span><span>${brl(l.valor)} <span class="muted small">${Math.round(l.valor/tot*100)}%</span></span><div class="bar"><i class="${l.valor<0?'neg':''}" style="width:${Math.abs(l.valor)/max*100}%"></i></div></div>`).join('')||'<p class="muted" style="margin:0">Nenhum cliente com valor.</p>'}</div>
-    ${sem.length?`<details style="margin-top:12px"><summary>${sem.length} clientes sem valor</summary><p class="small muted" style="margin:6px 0 0">${sem.map(l=>esc(l.cliente)).join(', ')}</p></details>`:''}
+  return `<section class="panel"><div class="head"><h2>Parceiros</h2><span class="muted small">${fmtFaixa(p.de,p.ate)}</span></div>
+    <div class="rank">${com.map(l=>`<div class="row"><span style="overflow-wrap:anywhere">${esc(l.cliente)}</span><span>${brl(l.valor)} <span class="muted small">${Math.round(l.valor/tot*100)}%</span></span><div class="bar"><i class="${l.valor<0?'neg':''}" style="width:${Math.abs(l.valor)/max*100}%"></i></div></div>`).join('')||'<p class="muted" style="margin:0">Nenhum parceiro com valor.</p>'}</div>
+    ${sem.length?`<details style="margin-top:12px"><summary>${sem.length} parceiros sem valor</summary><p class="small muted" style="margin:6px 0 0">${sem.map(l=>esc(l.cliente)).join(', ')}</p></details>`:''}
   </section>`;
 }
 function equipeHTML(m,c,mes){
   if(!c.funcionarias.length)return `<section class="panel"><div class="head"><h2>Equipe</h2></div><p class="muted" style="margin:0 0 10px">Cadastre as funcionárias para ver a comissão de cada uma no mês.</p><button class="btn" data-go="custos">Adicionar funcionária</button></section>`;
   const linhas=c.funcionarias.map(f=>{
     const ms=cents(m.porFunc[f.id]||0);
-    return `<tr><td>${esc(f.nome)}<br><span class="muted small">${(+f.pct||0).toLocaleString('pt-BR')}% ${f.base==='carteira'?'dos clientes dela':'do total'}</span></td><td>${brl(ms)}</td><td>${brl(+f.salario||0)}</td><td><b>${brl((+f.salario||0)+ms)}</b></td></tr>`}).join('');
+    return `<tr><td>${esc(f.nome)}<br><span class="muted small">${(+f.pct||0).toLocaleString('pt-BR')}% ${f.base==='carteira'?'dos parceiros dela':'do ganho total'}</span></td><td>${brl(ms)}</td><td>${brl(+f.salario||0)}</td><td><b>${brl((+f.salario||0)+ms)}</b></td></tr>`}).join('');
   return `<section class="panel"><div class="head"><h2>Equipe</h2><span class="muted small">${fmtMes(mes)}</span></div><div class="scroll"><table><thead><tr><th>Funcionária</th><th>Comissão mês</th><th>Salário</th><th>A pagar</th></tr></thead><tbody>${linhas}</tbody></table></div></section>`;
 }
 function mesesOpts(){
@@ -490,10 +490,10 @@ function custosHTML(){
       <div class="f"><label for="p-n-${f.id}">Nome</label><input id="p-n-${f.id}" data-p="${f.id}" data-k="nome" value="${esc(f.nome)}"></div>
       <div class="f"><label for="p-s-${f.id}">Salário por mês</label><input id="p-s-${f.id}" inputmode="decimal" data-p="${f.id}" data-k="salario" value="${f.salario?String(f.salario).replace('.',','):''}" placeholder="0,00"></div>
       <div class="f"><label for="p-c-${f.id}">Comissão %</label><input id="p-c-${f.id}" inputmode="decimal" data-p="${f.id}" data-k="pct" value="${f.pct?String(f.pct).replace('.',','):''}" placeholder="0"></div>
-      <div class="f"><label for="p-b-${f.id}">Comissão sobre</label><select id="p-b-${f.id}" data-p="${f.id}" data-k="base"><option value="todos" ${f.base!=='carteira'?'selected':''}>Total do dia</option><option value="carteira" ${f.base==='carteira'?'selected':''}>Clientes escolhidos</option></select></div>
+      <div class="f"><label for="p-b-${f.id}">Comissão sobre</label><select id="p-b-${f.id}" data-p="${f.id}" data-k="base"><option value="todos" ${f.base!=='carteira'?'selected':''}>Ganho total do dia</option><option value="carteira" ${f.base==='carteira'?'selected':''}>Parceiros escolhidos</option></select></div>
       <button class="btn small" data-act="rmFunc" data-id="${f.id}" aria-label="Remover ${esc(f.nome)}">Remover</button>
     </div>
-    ${f.base==='carteira'?`<details ${sel.size?'':'open'}><summary>${sel.size} ${sel.size===1?'cliente escolhido':'clientes escolhidos'}</summary><div class="checks">${clientes.map(c=>`<label><input type="checkbox" data-cli="${f.id}" value="${esc(c)}" ${sel.has(norm(c))?'checked':''}>${esc(c)}</label>`).join('')||'<span class="muted">Importe uma planilha para listar os clientes.</span>'}</div></details>`:''}
+    ${f.base==='carteira'?`<details ${sel.size?'':'open'}><summary>${sel.size} ${sel.size===1?'parceiro escolhido':'parceiros escolhidos'}</summary><div class="checks">${clientes.map(c=>`<label><input type="checkbox" data-cli="${f.id}" value="${esc(c)}" ${sel.has(norm(c))?'checked':''}>${esc(c)}</label>`).join('')||'<span class="muted">Importe uma planilha para listar os parceiros.</span>'}</div></details>`:''}
     </div>`}).join('');
   return `<section class="panel"><div class="head"><h2>Valores de custos</h2>
       <div class="f" style="min-width:190px"><label for="custos-mes">Valem a partir de</label><select id="custos-mes">${mesesOpts().map(m=>`<option value="${m}" ${m===d.mes?'selected':''}>${fmtMes(m)}</option>`).join('')}</select></div></div>
@@ -506,7 +506,7 @@ function custosHTML(){
       <div class="ledger" id="resumo"></div></section>
   </div>
   <section class="panel form"><div class="head" style="margin:0"><h2>Funcionárias</h2><button class="btn small" data-act="addFunc">Adicionar funcionária</button></div>
-    ${pessoas||'<p class="muted" style="margin:0">Informe o salário e a comissão de cada uma. A comissão pode ser sobre o total do dia ou só sobre os clientes dela.</p>'}</section>
+    ${pessoas||'<p class="muted" style="margin:0">Informe o salário e a comissão de cada uma. A comissão pode ser sobre o ganho total do dia ou só sobre os parceiros dela.</p>'}</section>
   <div class="savebar"><span class="small muted" id="salvo">${S.dirty?'Alterações ainda não salvas.':'Tudo salvo.'}</span><button class="btn primary" data-act="salvaCustos">Salvar valores de ${fmtMes(d.mes)}</button></div>
   ${S.err?`<div class="note bad">${esc(S.err)}</div>`:''}`;
 }
@@ -521,7 +521,7 @@ function historicoHTML(){
     return `<tr class="${k===S.date?'sel':''}"><td><button class="link" data-act="abre" data-to="${k}">${fmtDia(k)}</button></td><td>${brl(r.receita)}</td><td>${brl(r.comissoes)}</td><td>${brl(r.custo)}</td><td class="${r.lucro<0?'neg':''}"><b>${brl(r.lucro)}</b></td><td class="left muted small">${esc(d.arquivo||'')}</td>
     <td>${S.confirm===k?`<button class="btn small danger" data-act="apaga" data-to="${k}">Confirmar exclusão</button>`:`<button class="btn small" data-act="confirma" data-to="${k}">Excluir</button>`}</td></tr>`}).join('');
   return `<section class="panel"><div class="head"><h2>Histórico</h2><span class="muted small">${lista.length} ${lista.length===1?'dia':'dias'}</span></div>
-    <div class="scroll"><table><thead><tr><th>Data</th><th>Total</th><th>Comissões</th><th>Custos</th><th>Lucro</th><th class="left">Arquivo</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+    <div class="scroll"><table><thead><tr><th>Data</th><th>Ganho</th><th>Comissões</th><th>Custos</th><th>Lucro</th><th class="left">Arquivo</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
 }
 function loginHTML(){
   return `<form class="panel login" id="form-login" autocomplete="on">
@@ -545,7 +545,7 @@ function planilhasHTML(){
     return `<tr><td>${fmtDia(k)}</td><td>${brl(d.total)}</td><td class="left muted small">${esc(d.arquivo||'')}</td><td class="muted small">${d.importadoEm?new Date(d.importadoEm).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):''}</td></tr>`}).join('');
   return `${erro}${S.prev?prevHTML():dropHTML(!lista.length)}
   ${lista.length?`<section class="panel"><div class="head"><h2>Planilhas enviadas</h2><span class="muted small">${lista.length} ${lista.length===1?'dia':'dias'}</span></div>
-    <div class="scroll"><table><thead><tr><th>Data</th><th>Total</th><th class="left">Arquivo</th><th>Enviada em</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <div class="scroll"><table><thead><tr><th>Data</th><th>Ganho</th><th class="left">Arquivo</th><th>Enviada em</th></tr></thead><tbody>${rows}</tbody></table></div>
     <p class="muted small" style="margin:12px 0 0">Para corrigir um dia, envie a planilha dele de novo. Para excluir, fale com quem administra a dash.</p></section>`:''}`;
 }
 function contaHTML(){
@@ -619,7 +619,7 @@ function drawChart(){
   box.querySelectorAll('[data-chart-dia]').forEach(r=>{
     r.addEventListener('mouseenter',()=>{
       const d=ds.find(z=>z.data===r.dataset.chartDia);
-      tip.innerHTML=`${fmtDia(d.data)}: <b>${brl(d.lucro)}</b><br>Planilha ${brl(d.receita)}`;
+      tip.innerHTML=`${fmtDia(d.data)}: <b>${brl(d.lucro)}</b><br>Ganho das operações ${brl(d.receita)}`;
       tip.hidden=false;
       const cx=+r.getAttribute('x')+band/2;
       tip.style.left=Math.max(0,Math.min(box.clientWidth-tip.offsetWidth,cx-tip.offsetWidth/2))+'px';tip.style.top='0px';
