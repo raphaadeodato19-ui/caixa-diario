@@ -7,6 +7,7 @@
 <meta name="referrer" content="no-referrer">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://comlcgiiyoaurejcddsj.supabase.co; img-src 'self' data:; base-uri 'none'; form-action 'none'; object-src 'none'">
 <title>Invest Cred</title>
+<link rel="icon" type="image/png" href="img/favicon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
@@ -35,6 +36,9 @@ img{max-width:100%}
 body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 var(--body);font-variant-numeric:tabular-nums}
 .wrap{max-width:1080px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 56px;display:grid;gap:20px}
 header.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;justify-content:space-between}
+.marca{display:flex;align-items:center;gap:10px;min-width:0}
+.marca img{border-radius:50%;flex:none}
+.login-logo{display:block;width:120px;height:120px;border-radius:50%;margin:0 auto 4px}
 h1{font:700 26px/1.1 var(--display);margin:0;letter-spacing:-.01em}
 h2{font:700 18px/1.2 var(--display);margin:0;text-wrap:balance}
 nav{display:flex;gap:4px;background:var(--sunken);padding:4px;border-radius:8px}
@@ -121,7 +125,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
 <body>
 <div class="wrap">
   <header class="top">
-    <h1>Invest Cred</h1>
+    <div class="marca"><img src="img/logo.png" alt="" width="44" height="44"><h1>Invest Cred</h1></div>
     <nav aria-label="Seções" id="nav" hidden>
       <button data-go="planilhas" data-papel="gerente">Planilhas</button>
       <button data-go="painel" data-papel="dono">Painel</button>
@@ -521,6 +525,7 @@ function historicoHTML(){
 }
 function loginHTML(){
   return `<form class="panel login" id="form-login" autocomplete="on">
+    <img class="login-logo" src="img/logo.png" alt="Invest Cred Soluções Financeiras">
     <h2>Entrar</h2>
     <div class="f"><label for="login-email">E-mail</label><input id="login-email" type="email" autocomplete="username" required></div>
     <div class="f"><label for="login-senha">Senha</label><input id="login-senha" type="password" autocomplete="current-password" required></div>
