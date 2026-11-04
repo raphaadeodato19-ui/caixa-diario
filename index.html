@@ -138,9 +138,9 @@ tr.cancelada td.nota{text-decoration:none}
   <header class="top">
     <div class="marca"><img src="img/logo.png" alt="" width="44" height="44"><h1>Invest Cred</h1></div>
     <nav aria-label="Seções" id="nav" hidden>
+      <button data-go="calculadora">Calculadora</button>
       <button data-go="planilhas" data-papel="gerente">Planilhas</button>
       <button data-go="painel" data-papel="dono">Painel</button>
-      <button data-go="calculadora">Calculadora</button>
       <button data-go="vendas">Vendas</button>
       <button data-go="taxas" data-papel="dono">Taxas</button>
       <button data-go="custos" data-papel="dono">Custos e equipe</button>
@@ -184,7 +184,7 @@ function cpfValido(c){
   return true;
 }
 const BANDEIRAS={visa:'Visa',master:'Master',elo:'Elo/Banese/demais'},MAQUINAS={pagbank:'PagBank',cielo:'Cielo'};
-const VIEWS={gerente:['planilhas','calculadora','vendas','conta'],dono:['painel','calculadora','vendas','taxas','custos','historico','conta']};
+const VIEWS={gerente:['calculadora','planilhas','vendas','conta'],dono:['calculadora','painel','vendas','taxas','custos','historico','conta']};
 const calcInicial=()=>({maquina:'pagbank',bandeira:'visa',parcelas:1,modo:'cartao',valor:'',nome:'',cpf:'',telefone:'',data:hojeISO()});
 const vfInicial=()=>({de:mesAtual()+'-01',ate:hojeISO(),maquina:'',bandeira:''});
 
@@ -315,7 +315,7 @@ function fmtFaixa(de,ate){
 const comPlanilha=(n,tot)=>`${n} de ${tot} ${tot===1?'dia':'dias'} com planilha`;
 
 /* ---------- estado e persistência ---------- */
-const S={dias:{},custos:{},view:'painel',date:null,periodo:'dia',de:null,ate:null,prev:null,err:null,loaded:{dias:false,custos:false},draft:null,dirty:false,confirm:null,toastT:0,sessao:null,acesso:null,papel:null,cobranca:{},custoTaxas:{},adicionais:{},vendas:[],calc:calcInicial(),vF:vfInicial(),taxasDraft:null,cancelando:null,authPronto:false,ultimaCarga:0};
+const S={dias:{},custos:{},view:'calculadora',date:null,periodo:'dia',de:null,ate:null,prev:null,err:null,loaded:{dias:false,custos:false},draft:null,dirty:false,confirm:null,toastT:0,sessao:null,acesso:null,papel:null,cobranca:{},custoTaxas:{},adicionais:{},vendas:[],calc:calcInicial(),vF:vfInicial(),taxasDraft:null,cancelando:null,authPronto:false,ultimaCarga:0};
 /* Chave pública do Supabase: quem protege os dados são o login e as regras de acesso do banco. */
 const SB_URL='https://comlcgiiyoaurejcddsj.supabase.co',SB_KEY='sb_publishable_lEsm-yhizYahUBABB2YPJA_YW_QfrSQ';
 const sb=window.supabase?window.supabase.createClient(SB_URL,SB_KEY):null;
@@ -816,7 +816,7 @@ document.addEventListener('click',async e=>{
   const g=e.target.closest('[data-go]');if(g){ir(g.dataset.go);return}
   const b=e.target.closest('[data-act]');if(!b)return;
   const a=b.dataset.act,to=b.dataset.to,d=S.draft;
-  if(a==='sair'){await sb.auth.signOut({scope:'local'});S.view='painel';try{location.hash='painel'}catch(e){}return}
+  if(a==='sair'){await sb.auth.signOut({scope:'local'});S.view='calculadora';try{location.hash='calculadora'}catch(e){}return}
   if(a==='dia'&&to){S.date=to;if(S.periodo==='custom')S.periodo='dia';render()}
   if(a==='periodo'){S.periodo=to;render()}
   if(a==='cancelaPrev'){S.prev=null;render()}
