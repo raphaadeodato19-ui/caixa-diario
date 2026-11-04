@@ -599,18 +599,19 @@ function planilhasHTML(){
     <div class="scroll"><table><thead><tr><th>Data</th><th>Ganho</th><th class="left">Arquivo</th><th>Enviada em</th></tr></thead><tbody>${rows}</tbody></table></div>
     <p class="muted small" style="margin:12px 0 0">Para corrigir um dia, envie a planilha dele de novo. Para excluir, fale com quem administra a dash.</p></section>`:''}`;
 }
-function contaVenda(valor,pct,custoPct){
-  const c=Math.round(valor*100),taxa=Math.round(c*Math.round(pct*1000)/100000);
-  const custo=custoPct==null?null:Math.round(c*Math.round(custoPct*1000)/100000);
-  return{cartao:c/100,taxa:taxa/100,pix:(c-taxa)/100,custo:custo==null?null:custo/100,lucro:custo==null?null:(taxa-custo)/100};
+function contaVenda(valor,pct,custoPct,modo){
+  /* modo 'cartao': a taxa sai do valor passado. modo 'pix': o cliente recebe o valor digitado e a taxa é somada a ele no cartão. */
+  const v=Math.round(valor*100),taxa=Math.round(v*Math.round(pct*1000)/100000);
+  const cartao=modo==='pix'?v+taxa:v;
+  const custo=custoPct==null?null:Math.round(cartao*Math.round(custoPct*1000)/100000);
+  return{cartao:cartao/100,taxa:taxa/100,pix:(cartao-taxa)/100,custo:custo==null?null:custo/100,lucro:custo==null?null:(taxa-custo)/100};
 }
 function calcAtual(){
   const k=S.calc,pct=S.cobranca[k.bandeira+'|'+k.parcelas],base=parseMoney(k.valor)||0;
   if(pct==null||base<=0)return{pct};
-  const cartao=k.modo==='pix'?cents(base/(1-pct/100)):base;
   const bc=S.custoTaxas[k.maquina+'|'+k.bandeira+'|'+k.parcelas];
   const custoPct=S.papel==='dono'&&bc!=null?bc+(S.adicionais[k.maquina]||0):null;
-  return{pct,custoPct,...contaVenda(cartao,pct,custoPct)};
+  return{pct,custoPct,valorBase:base,...contaVenda(base,pct,custoPct,k.modo)};
 }
 function calcResultadoHTML(){
   const r=calcAtual(),k=S.calc;
@@ -619,7 +620,7 @@ function calcResultadoHTML(){
   return `<div class="eyebrow">Cliente recebe</div><div class="calc-pix">${brl(r.pix)}</div>
   <div class="ledger">
     <div><span>Valor no cartão</span><span>${brl(r.cartao)}</span></div>
-    <div><span>Taxa cobrada <span class="muted small">(${fmtPct(r.pct)})</span></span><span>${brl(r.taxa)}</span></div>
+    <div><span>Taxa cobrada <span class="muted small">(${fmtPct(r.pct)}${k.modo==='pix'?' sobre o valor do cliente':''})</span></span><span>${brl(r.taxa)}</span></div>
     <div><span>Parcela estimada <span class="muted small">(${k.parcelas}x)</span></span><span>${brl(r.cartao/k.parcelas)}</span></div>
     ${r.custo==null?'':`<div><span>Custo da maquineta <span class="muted small">(${fmtPct(r.custoPct)})</span></span><span>${brl(r.custo)}</span></div>`}
     ${r.lucro==null?`<div><span>= Cliente recebe</span><span>${brl(r.pix)}</span></div>`:`<div><span>= Lucro da Invest</span><span>${brl(r.lucro)}</span></div>`}
@@ -656,7 +657,7 @@ async function registraVenda(btn){
   const erro=r.cartao==null?'Informe o valor da venda.':!k.vendedora?'Selecione quem vendeu.':!k.pagamento?'Selecione a forma de pagamento.':!k.nome.trim()?'Informe o nome do cliente.':!cpfValido(cpf)?'CPF inválido. Confira os números.':![10,11].includes(tel.length)?'Telefone inválido. Informe o DDD e o número.':!k.data||k.data>hojeISO()?'Informe uma data de venda válida.':null;
   S.err=erro;if(erro){render();return}
   btn.disabled=true;
-  const{data,error}=await sb.rpc('registrar_venda',{p_data:k.data,p_maquina:k.maquina,p_bandeira:k.bandeira,p_parcelas:+k.parcelas,p_valor_cartao:r.cartao,p_nome:k.nome.trim(),p_cpf:cpf,p_telefone:tel,p_vendedora:k.vendedora,p_pagamento:k.pagamento});
+  const{data,error}=await sb.rpc('registrar_venda',{p_data:k.data,p_maquina:k.maquina,p_bandeira:k.bandeira,p_parcelas:+k.parcelas,p_valor:r.valorBase,p_base:k.modo==='pix'?'cliente':'cartao',p_nome:k.nome.trim(),p_cpf:cpf,p_telefone:tel,p_vendedora:k.vendedora,p_pagamento:k.pagamento});
   if(error){S.err=error.code==='P0001'||error.code==='42501'?error.message:'Não foi possível registrar. Verifique a conexão e tente de novo.';render();return}
   Object.assign(S.calc,{valor:'',nome:'',cpf:'',telefone:'',vendedora:'',pagamento:''});
   try{await carregaVendas()}catch(e){}
@@ -706,7 +707,7 @@ function comparaHTML(){
     <div class="scroll">${rows?`<table><thead><tr><th>Data</th><th>Lucro das vendas</th><th>Linhas ESCRITÓRIO</th><th>Diferença</th></tr></thead><tbody>${rows}</tbody></table>`:'<p class="muted" style="margin:0">Nada para comparar nessas datas.</p>'}</div></section>`;
 }
 function exportaVendas(){
-  const rows=vendasFiltradas().map(v=>{const c=umDe(v.vendas_custo),cf=umDe(v.vendas_cpf);return{Data:fmtDia(v.data),Cliente:v.cliente_nome,CPF:cf?fmtCpf(cf.cpf):v.cpf_mascarado,Telefone:fmtTel(v.cliente_telefone),'Máquina':MAQUINAS[v.maquina],Bandeira:BANDEIRAS[v.bandeira],'Quem vendeu':v.vendedora||'Não informada',Parcelas:v.parcelas,'Valor no cartão':+v.valor_cartao,'Taxa %':+v.taxa_pct,'Valor da taxa':+v.valor_taxa,'Cliente recebe':+v.valor_pix,'Forma de pagamento':FORMAS[v.forma_pagamento]||'Não informada','Custo %':c?+c.custo_pct:null,'Custo':c?+c.custo_valor:null,Lucro:c?+c.lucro:null,'Registrada por':v.registrado_email||'',Cancelada:v.cancelada_em?'Sim':'','Motivo do cancelamento':v.motivo_cancelamento||''}});
+  const rows=vendasFiltradas().map(v=>{const c=umDe(v.vendas_custo),cf=umDe(v.vendas_cpf);return{Data:fmtDia(v.data),Cliente:v.cliente_nome,CPF:cf?fmtCpf(cf.cpf):v.cpf_mascarado,Telefone:fmtTel(v.cliente_telefone),'Máquina':MAQUINAS[v.maquina],Bandeira:BANDEIRAS[v.bandeira],'Quem vendeu':v.vendedora||'Não informada',Parcelas:v.parcelas,'Valor no cartão':+v.valor_cartao,'Taxa %':+v.taxa_pct,'Valor da taxa':+v.valor_taxa,'Calculada sobre':v.base_calculo==='cliente'?'Valor do cliente':'Valor no cartão','Cliente recebe':+v.valor_pix,'Forma de pagamento':FORMAS[v.forma_pagamento]||'Não informada','Custo %':c?+c.custo_pct:null,'Custo':c?+c.custo_valor:null,Lucro:c?+c.lucro:null,'Registrada por':v.registrado_email||'',Cancelada:v.cancelada_em?'Sim':'','Motivo do cancelamento':v.motivo_cancelamento||''}});
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'Vendas');
   XLSX.writeFile(wb,`Vendas ${S.vF.de} a ${S.vF.ate}.xlsx`);
 }
