@@ -139,9 +139,9 @@ tr.cancelada td.nota{text-decoration:none}
     <div class="marca"><img src="img/logo.png" alt="" width="44" height="44"><h1>Invest Cred</h1></div>
     <nav aria-label="Seções" id="nav" hidden>
       <button data-go="calculadora">Calculadora</button>
+      <button data-go="vendas">Vendas</button>
       <button data-go="planilhas" data-papel="gerente">Planilhas</button>
       <button data-go="painel" data-papel="dono">Painel</button>
-      <button data-go="vendas">Vendas</button>
       <button data-go="taxas" data-papel="dono">Taxas</button>
       <button data-go="custos" data-papel="dono">Custos e equipe</button>
       <button data-go="historico" data-papel="dono">Histórico</button>
@@ -184,7 +184,7 @@ function cpfValido(c){
   return true;
 }
 const BANDEIRAS={visa:'Visa',master:'Master',elo:'Elo/Banese/demais'},MAQUINAS={pagbank:'PagBank',cielo:'Cielo'};
-const VIEWS={gerente:['calculadora','planilhas','vendas','conta'],dono:['calculadora','painel','vendas','taxas','custos','historico','conta']};
+const VIEWS={gerente:['calculadora','vendas','planilhas','conta'],dono:['calculadora','vendas','painel','taxas','custos','historico','conta']};
 const calcInicial=()=>({maquina:'pagbank',bandeira:'visa',parcelas:1,modo:'cartao',valor:'',nome:'',cpf:'',telefone:'',data:hojeISO()});
 const vfInicial=()=>({de:mesAtual()+'-01',ate:hojeISO(),maquina:'',bandeira:''});
 
