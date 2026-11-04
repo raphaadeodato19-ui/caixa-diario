@@ -114,6 +114,9 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
 .savebar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:9px 15px;border-radius:6px;font-size:14px;z-index:5;max-width:90vw}
 .stack{display:grid;gap:20px}
+.meta-in{width:120px;padding:5px 8px;border:1px solid var(--line);border-radius:5px;background:var(--bg);text-align:right}
+.bar-meta{height:6px;background:var(--sunken);border-radius:3px;overflow:hidden;margin-top:5px;min-width:130px}
+.bar-meta i{display:block;height:100%;background:var(--accent);border-radius:0 3px 3px 0}
 .calc-sel{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
 .calc-pix{font:700 clamp(32px,6vw,46px)/1.1 var(--display);margin:4px 0 12px;overflow-wrap:anywhere}
 .cli-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
@@ -186,7 +189,8 @@ function cpfValido(c){
 const BANDEIRAS={visa:'Visa',master:'Master',elo:'Elo/Banese/demais'},MAQUINAS={pagbank:'PagBank',cielo:'Cielo'};
 const VIEWS={gerente:['calculadora','vendas','planilhas','conta'],dono:['calculadora','vendas','painel','taxas','custos','historico','conta']};
 const FORMAS={pix:'Pix',especie:'Espécie'};
-const VENDEDORAS={'Escritório':['Ketley','Elen'],'Vendedoras':['Panfletista 1','Panfletista 2','Panfletista 3']};
+const VENDEDORAS={'Escritório':['Ketley','Elen'],'Vendedoras':['Ester','Kelly','Maria']};
+const GRUPOS_META=[{id:'escritorio',nome:'Escritório',membros:['Ketley','Elen']},{id:'Ester',nome:'Ester',membros:['Ester']},{id:'Kelly',nome:'Kelly',membros:['Kelly']},{id:'Maria',nome:'Maria',membros:['Maria']}];
 const calcInicial=()=>({maquina:'pagbank',bandeira:'visa',parcelas:1,modo:'cartao',valor:'',nome:'',cpf:'',telefone:'',data:hojeISO(),vendedora:'',pagamento:''});
 const vfInicial=()=>({de:mesAtual()+'-01',ate:hojeISO(),maquina:'',bandeira:'',vendedora:'',pagamento:''});
 
@@ -317,7 +321,7 @@ function fmtFaixa(de,ate){
 const comPlanilha=(n,tot)=>`${n} de ${tot} ${tot===1?'dia':'dias'} com planilha`;
 
 /* ---------- estado e persistência ---------- */
-const S={dias:{},custos:{},view:'calculadora',date:null,periodo:'dia',de:null,ate:null,prev:null,err:null,loaded:{dias:false,custos:false},draft:null,dirty:false,confirm:null,toastT:0,sessao:null,acesso:null,papel:null,cobranca:{},custoTaxas:{},adicionais:{},vendas:[],calc:calcInicial(),vF:vfInicial(),taxasDraft:null,cancelando:null,authPronto:false,ultimaCarga:0};
+const S={dias:{},custos:{},view:'calculadora',date:null,periodo:'dia',de:null,ate:null,prev:null,err:null,loaded:{dias:false,custos:false},draft:null,dirty:false,confirm:null,toastT:0,sessao:null,acesso:null,papel:null,cobranca:{},custoTaxas:{},adicionais:{},vendas:[],calc:calcInicial(),vF:vfInicial(),taxasDraft:null,cancelando:null,metaMes:mesAtual(),metaValores:{},metaVendas:{},metaDraft:{},authPronto:false,ultimaCarga:0};
 /* Chave pública do Supabase: quem protege os dados são o login e as regras de acesso do banco. */
 const SB_URL='https://comlcgiiyoaurejcddsj.supabase.co',SB_KEY='sb_publishable_lEsm-yhizYahUBABB2YPJA_YW_QfrSQ';
 const sb=window.supabase?window.supabase.createClient(SB_URL,SB_KEY):null;
@@ -344,7 +348,7 @@ async function carrega(){
   S.dias=Object.fromEntries(d.data.map(r=>[r.data,rowDia(r)]));
   S.custos=Object.fromEntries(c.data.map(r=>[r.mes,rowCusto(r)]));
   S.loaded={dias:true,custos:true};S.ultimaCarga=Date.now();banner('');
-  try{await carregaTaxas();await carregaVendas()}catch(e){banner('Não consegui buscar as vendas e as taxas. Verifique a conexão e recarregue a página.','bad')}
+  try{await carregaTaxas();await carregaVendas();await carregaMetas()}catch(e){banner('Não consegui buscar as vendas e as taxas. Verifique a conexão e recarregue a página.','bad')}
   if(S.view==='custos'&&!S.dirty)S.draft=null;
 }
 async function carregaTaxas(){
@@ -365,11 +369,24 @@ async function carregaVendas(){
   }
   S.vendas=todas;
 }
+async function carregaMetas(){
+  const mes=S.metaMes,{de,ate}=limitesMes(mes);
+  const m=await sb.from('metas').select('*').eq('mes',mes);if(m.error)throw m.error;
+  const somas={};
+  for(let i=0;;i+=1000){
+    const{data,error}=await sb.from('vendas').select('vendedora,valor_cartao').gte('data',de).lte('data',ate).is('cancelada_em',null).order('id').range(i,i+999);
+    if(error)throw error;
+    data.forEach(v=>{const k=v.vendedora||'Não informada';somas[k]=(somas[k]||0)+ +v.valor_cartao});
+    if(data.length<1000)break;
+  }
+  if(mes!==S.metaMes)return;
+  S.metaValores=Object.fromEntries(m.data.map(r=>[r.grupo,+r.valor]));S.metaVendas=somas;
+}
 const umDe=x=>Array.isArray(x)?x[0]:x;
 async function aplicaSessao(s){
   const antes=S.sessao?.user?.id;S.sessao=s;S.authPronto=true;
   if(!s){
-    Object.assign(S,{cobranca:{},custoTaxas:{},adicionais:{},vendas:[],calc:calcInicial(),vF:vfInicial(),taxasDraft:null,cancelando:null,dias:{},custos:{},acesso:null,papel:null,date:null,periodo:'dia',de:null,ate:null,prev:null,err:null,draft:null,dirty:false,draftMes:null,loaded:{dias:false,custos:false}});
+    Object.assign(S,{cobranca:{},custoTaxas:{},adicionais:{},vendas:[],calc:calcInicial(),vF:vfInicial(),taxasDraft:null,cancelando:null,metaMes:mesAtual(),metaValores:{},metaVendas:{},metaDraft:{},dias:{},custos:{},acesso:null,papel:null,date:null,periodo:'dia',de:null,ate:null,prev:null,err:null,draft:null,dirty:false,draftMes:null,loaded:{dias:false,custos:false}});
     render();return;
   }
   if(antes===s.user.id&&S.acesso)return; /* só renovou o token */
@@ -441,7 +458,7 @@ function painelHTML(){
   const lista=Object.keys(S.dias).sort();
   if(!S.loaded.dias&&!lista.length)return'<p class="muted">Carregando seus dados…</p>';
   const erro=S.err?`<div class="note bad">${esc(S.err)}</div>`:'';
-  if(!lista.length)return erro+(S.prev?prevHTML():dropHTML(true));
+  if(!lista.length)return erro+metasHTML()+(S.prev?prevHTML():dropHTML(true));
   if(!S.date||!S.dias[S.date])S.date=lista[lista.length-1];
   const mes=S.date.slice(0,7),m=calcMes(mes),c=m.cfg;
   const faixa=limites(S.periodo),p=calcPeriodo(faixa.de,faixa.ate);
@@ -457,7 +474,7 @@ function painelHTML(){
   const titulo=S.periodo==='mes'?fmtMes(mes):fmtFaixa(p.de,p.ate);
   const custoNota=S.periodo==='dia'?`(${brl(m.custoMes)} ÷ ${c.dias} dias)`:`(${p.n} ${p.n===1?'dia':'dias'} com planilha)`;
   const grafico=S.periodo==='dia'?limitesMes(mes):faixa;
-  return `${erro}${S.prev?prevHTML():dropHTML(false)}
+  return `${erro}${metasHTML()}${S.prev?prevHTML():dropHTML(false)}
   ${semCustos?`<div class="note warn"><span>Sem custos cadastrados, o lucro abaixo ainda é só o ganho das operações.</span><button class="link" data-go="custos">Cadastrar gastos e funcionárias</button></div>`:''}
   <section class="panel">
     <div class="head"><h2>Lucro</h2>
@@ -660,7 +677,7 @@ async function registraVenda(btn){
   const{data,error}=await sb.rpc('registrar_venda',{p_data:k.data,p_maquina:k.maquina,p_bandeira:k.bandeira,p_parcelas:+k.parcelas,p_valor:r.valorBase,p_base:k.modo==='pix'?'cliente':'cartao',p_nome:k.nome.trim(),p_cpf:cpf,p_telefone:tel,p_vendedora:k.vendedora,p_pagamento:k.pagamento});
   if(error){S.err=error.code==='P0001'||error.code==='42501'?error.message:'Não foi possível registrar. Verifique a conexão e tente de novo.';render();return}
   Object.assign(S.calc,{valor:'',nome:'',cpf:'',telefone:'',vendedora:'',pagamento:''});
-  try{await carregaVendas()}catch(e){}
+  try{await carregaVendas();await carregaMetas()}catch(e){}
   toast(`Venda registrada: ${brl(data.valor_pix)} em ${FORMAS[data.forma_pagamento]}.`);render();
 }
 function vendasFiltradas(){const f=S.vF;return S.vendas.filter(v=>(!f.maquina||v.maquina===f.maquina)&&(!f.bandeira||v.bandeira===f.bandeira)&&(!f.vendedora||v.vendedora===f.vendedora)&&(!f.pagamento||v.forma_pagamento===f.pagamento))}
@@ -675,7 +692,7 @@ function vendasHTML(){
     const canc=S.cancelando===v.id?`<tr><td colspan="${cols}" style="text-align:left;white-space:normal"><div class="filtros"><div class="f" style="max-width:none;flex:1 1 220px"><label for="motivo">Motivo do cancelamento</label><input id="motivo"></div><button class="btn small danger" data-act="confirmaCancel" data-to="${v.id}">Confirmar cancelamento</button><button class="btn small" data-act="fechaCancel">Voltar</button></div></td></tr>`:'';
     return lin+nota+canc;
   }).join('');
-  return `<section class="panel"><div class="head"><h2>Vendas do escritório</h2>${dono?`<button class="btn small" data-act="exportaVendas" ${lista.length?'':'disabled'}>Exportar Excel</button>`:''}</div>
+  return `${metasHTML()}<section class="panel"><div class="head"><h2>Vendas do escritório</h2>${dono?`<button class="btn small" data-act="exportaVendas" ${lista.length?'':'disabled'}>Exportar Excel</button>`:''}</div>
     <form class="filtros" id="form-vendas">
       <div class="f"><label for="v-de">De</label><input id="v-de" type="date" value="${f.de}" required></div>
       <div class="f"><label for="v-ate">Até</label><input id="v-ate" type="date" value="${f.ate}" required></div>
@@ -695,6 +712,40 @@ function vendasHTML(){
     </div></section>
   <section class="panel"><div class="scroll">${lista.length?`<table><thead><tr><th>Data</th><th class="left">Cliente</th><th class="left">CPF</th><th class="left">Máquina</th><th class="left">Bandeira</th><th class="left">Vendeu</th><th>Parcelas</th><th>Cartão</th><th>Taxa</th><th>Cliente recebe</th><th class="left">Pagamento</th>${dono?'<th>Custo</th><th>Lucro</th>':''}<th></th></tr></thead><tbody>${linhas}</tbody></table>`:'<p class="muted" style="margin:0">Nenhuma venda nesse filtro.</p>'}</div></section>
   ${dono?comparaHTML():''}`;
+}
+function metasHTML(){
+  const dono=S.papel==='dono',vendas=S.metaVendas,conhecidos=new Set(GRUPOS_META.flatMap(g=>g.membros));
+  const linhas=GRUPOS_META.map(g=>{
+    const vendido=cents(g.membros.reduce((a,n)=>a+(vendas[n]||0),0)),meta=S.metaValores[g.id],temMeta=meta>0;
+    const falta=temMeta?Math.max(0,cents(meta-vendido)):null,pct=temMeta?Math.round(vendido/meta*100):null;
+    const rascunho=S.metaDraft[g.id];
+    const campo=dono?`<input class="meta-in" inputmode="decimal" aria-label="Meta de ${g.nome}" data-meta="${g.id}" placeholder="0,00" value="${rascunho!==undefined?esc(rascunho):meta!=null?String(meta).replace('.',','):''}">`:(meta!=null?brl(meta):'<span class="muted small">Sem meta</span>');
+    const det=g.membros.length>1?`<br><span class="muted small">${g.membros.map(n=>`${n}: ${brl(vendas[n]||0)}`).join(' · ')}</span>`:'';
+    return `<tr><td>${g.nome}${det}${temMeta?`<div class="bar-meta" role="img" aria-label="${pct}% da meta"><i style="width:${Math.min(100,pct)}%"></i></div>`:''}</td><td>${campo}</td><td>${brl(vendido)}</td><td>${falta==null?'':falta===0?'<b>Meta batida</b>':brl(falta)}</td><td>${pct==null?'':pct+'%'}</td></tr>`}).join('');
+  const fora=Object.entries(vendas).filter(([n])=>!conhecidos.has(n));
+  return `<section class="panel"><div class="head"><h2>Metas de vendas</h2>
+      <div class="f" style="min-width:150px"><label for="meta-mes">Mês</label><input id="meta-mes" type="month" value="${S.metaMes}"></div></div>
+    <p class="muted small" style="margin:0 0 10px">Soma o valor passado no cartão no mês, sem as vendas canceladas.</p>
+    <div class="scroll"><table><thead><tr><th>Equipe</th><th>Meta</th><th>Vendido</th><th>Falta</th><th>%</th></tr></thead><tbody>${linhas}</tbody></table></div>
+    ${fora.length?`<p class="muted small" style="margin:10px 0 0">Fora das metas: ${fora.map(([n,v])=>`${esc(n)} (${brl(v)})`).join(', ')}.</p>`:''}
+    ${dono?`<div class="savebar" style="margin-top:12px"><span class="muted small">Cada mês tem as próprias metas.</span><button class="btn" data-act="salvaMetas">Salvar metas</button></div>`:''}
+  </section>`;
+}
+async function salvaMetas(){
+  const mes=S.metaMes,ups=[],apagar=[];
+  for(const g of GRUPOS_META){
+    if(!(g.id in S.metaDraft))continue;
+    const txt=String(S.metaDraft[g.id]).trim();
+    if(!txt){apagar.push(g.id);continue}
+    const n=parseMoney(txt);
+    if(n==null||n<0){toast(`Meta inválida em ${g.nome}.`);return}
+    ups.push({mes,grupo:g.id,valor:cents(n),atualizado_em:new Date().toISOString()});
+  }
+  if(ups.length){const{error}=await sb.from('metas').upsert(ups);if(error){toast(errMsg(error));return}}
+  if(apagar.length){const{error}=await sb.from('metas').delete().eq('mes',mes).in('grupo',apagar);if(error){toast(errMsg(error));return}}
+  S.metaDraft={};
+  try{await carregaMetas()}catch(e){}
+  toast('Metas salvas.');render();
 }
 function comparaHTML(){
   const{de,ate}=S.vF,mapa={};
@@ -846,11 +897,12 @@ document.addEventListener('click',async e=>{
   if(a==='fechaCancel'){S.cancelando=null;render()}
   if(a==='exportaVendas')exportaVendas();
   if(a==='salvaTaxas')salvaTaxas();
+  if(a==='salvaMetas')salvaMetas();
   if(a==='confirmaCancel'){
     const m=$('#motivo').value.trim();if(!m){toast('Informe o motivo do cancelamento.');return}
     const{error}=await sb.rpc('cancelar_venda',{p_id:to,p_motivo:m});
     if(error){toast(error.code==='P0001'||error.code==='42501'?error.message:'Não foi possível cancelar. Tente de novo.');return}
-    S.cancelando=null;try{await carregaVendas()}catch(x){}toast('Venda cancelada.');render();
+    S.cancelando=null;try{await carregaVendas();await carregaMetas()}catch(x){}toast('Venda cancelada.');render();
   }
 });
 document.addEventListener('submit',async e=>{
@@ -894,6 +946,7 @@ document.addEventListener('input',e=>{
   const t=e.target,d=S.draft;
   if(t.dataset.calc&&t.tagName==='INPUT'){S.calc[t.dataset.calc]=t.value;const r=$('#calc-res');if(r)r.innerHTML=calcResultadoHTML();return}
   if(t.dataset.tx){const x=S.taxasDraft,n=parseMoney(t.value);if(t.dataset.tx==='adicional')x.adicional=n;else x[t.dataset.tx][t.dataset.k]=n;return}
+  if(t.dataset.meta){S.metaDraft[t.dataset.meta]=t.value;return}
   if(t.dataset.fx){const f=d.fixos.find(x=>x.id===t.dataset.fx);f[t.dataset.k]=t.dataset.k==='valor'?(parseMoney(t.value)||0):t.value;marcaSujo()}
   else if(t.dataset.p&&t.tagName==='INPUT'){const f=d.funcionarias.find(x=>x.id===t.dataset.p);f[t.dataset.k]=t.dataset.k==='nome'?t.value:(parseMoney(t.value)||0);marcaSujo()}
   else if(t.id==='dias-func'){d.dias=parseInt(t.value,10)||0;marcaSujo()}
@@ -905,6 +958,7 @@ document.addEventListener('change',e=>{
     if(t.dataset.calc==='modo')$('#c-val-l').textContent=t.value==='pix'?'Valor que o cliente quer receber':'Valor passado no cartão';
     $('#calc-res').innerHTML=calcResultadoHTML();return;
   }
+  if(t.id==='meta-mes'){if(!t.value)return;S.metaMes=t.value;S.metaDraft={};carregaMetas().catch(()=>toast('Não consegui buscar as metas.')).finally(render);return}
   if(t.dataset.vf){S.vF[t.dataset.vf]=t.value;S.cancelando=null;render();return}
   if(t.id==='arquivo'){handleFile(t.files[0]);return}
   if(t.id==='sel-dia'){S.date=t.value;if(S.periodo==='custom')S.periodo='dia';render();return}
