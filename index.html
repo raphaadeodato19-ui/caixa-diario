@@ -6,7 +6,7 @@
 <meta name="robots" content="noindex,nofollow">
 <meta name="referrer" content="no-referrer">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://comlcgiiyoaurejcddsj.supabase.co; img-src 'self' data:; base-uri 'none'; form-action 'none'; object-src 'none'">
-<title>Caixa Diário</title>
+<title>Invest Cred</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 <style>
@@ -121,7 +121,7 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
 <body>
 <div class="wrap">
   <header class="top">
-    <h1>Caixa Diário</h1>
+    <h1>Invest Cred</h1>
     <nav aria-label="Seções" id="nav" hidden>
       <button data-go="planilhas" data-papel="gerente">Planilhas</button>
       <button data-go="painel" data-papel="dono">Painel</button>
@@ -530,7 +530,7 @@ function loginHTML(){
   </form>`;
 }
 function negadoHTML(){
-  return `<section class="panel login"><h2>Conta sem acesso</h2><p class="muted" style="margin:0">Esta conta ainda não foi liberada para ver os dados do Caixa Diário.</p><button class="btn" data-act="sair">Sair</button></section>`;
+  return `<section class="panel login"><h2>Conta sem acesso</h2><p class="muted" style="margin:0">Esta conta ainda não foi liberada para ver os dados do Invest Cred.</p><button class="btn" data-act="sair">Sair</button></section>`;
 }
 function planilhasHTML(){
   const lista=Object.keys(S.dias).sort().reverse();
