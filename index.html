@@ -123,9 +123,10 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
   <header class="top">
     <h1>Caixa Diário</h1>
     <nav aria-label="Seções" id="nav" hidden>
-      <button data-go="painel">Painel</button>
-      <button data-go="custos">Custos e equipe</button>
-      <button data-go="historico">Histórico</button>
+      <button data-go="planilhas" data-papel="gerente">Planilhas</button>
+      <button data-go="painel" data-papel="dono">Painel</button>
+      <button data-go="custos" data-papel="dono">Custos e equipe</button>
+      <button data-go="historico" data-papel="dono">Histórico</button>
       <button data-go="conta">Conta</button>
     </nav>
   </header>
@@ -281,7 +282,7 @@ function fmtFaixa(de,ate){
 const comPlanilha=(n,tot)=>`${n} de ${tot} ${tot===1?'dia':'dias'} com planilha`;
 
 /* ---------- estado e persistência ---------- */
-const S={dias:{},custos:{},view:'painel',date:null,periodo:'dia',de:null,ate:null,prev:null,err:null,loaded:{dias:false,custos:false},draft:null,dirty:false,confirm:null,toastT:0,sessao:null,acesso:null,authPronto:false,ultimaCarga:0};
+const S={dias:{},custos:{},view:'painel',date:null,periodo:'dia',de:null,ate:null,prev:null,err:null,loaded:{dias:false,custos:false},draft:null,dirty:false,confirm:null,toastT:0,sessao:null,acesso:null,papel:null,authPronto:false,ultimaCarga:0};
 /* Chave pública do Supabase: quem protege os dados são o login e as regras de acesso do banco. */
 const SB_URL='https://comlcgiiyoaurejcddsj.supabase.co',SB_KEY='sb_publishable_lEsm-yhizYahUBABB2YPJA_YW_QfrSQ';
 const sb=window.supabase?window.supabase.createClient(SB_URL,SB_KEY):null;
@@ -302,7 +303,8 @@ async function apaga(col,id){
   delete S[col][id];
 }
 async function carrega(){
-  const[d,c]=await Promise.all([sb.from('dias').select('*').order('data'),sb.from('custos').select('*').order('mes')]);
+  /* A gerente não busca os custos, e o banco também não os entrega a ela. */
+  const[d,c]=await Promise.all([sb.from('dias').select('*').order('data'),S.papel==='dono'?sb.from('custos').select('*').order('mes'):{data:[]}]);
   if(d.error||c.error){banner('Não consegui buscar os dados. Verifique a conexão e recarregue a página.','bad');return}
   S.dias=Object.fromEntries(d.data.map(r=>[r.data,rowDia(r)]));
   S.custos=Object.fromEntries(c.data.map(r=>[r.mes,rowCusto(r)]));
@@ -312,13 +314,13 @@ async function carrega(){
 async function aplicaSessao(s){
   const antes=S.sessao?.user?.id;S.sessao=s;S.authPronto=true;
   if(!s){
-    Object.assign(S,{dias:{},custos:{},acesso:null,date:null,periodo:'dia',de:null,ate:null,prev:null,err:null,draft:null,dirty:false,draftMes:null,loaded:{dias:false,custos:false}});
+    Object.assign(S,{dias:{},custos:{},acesso:null,papel:null,date:null,periodo:'dia',de:null,ate:null,prev:null,err:null,draft:null,dirty:false,draftMes:null,loaded:{dias:false,custos:false}});
     render();return;
   }
   if(antes===s.user.id&&S.acesso)return; /* só renovou o token */
-  const{data,error}=await sb.from('membros').select('user_id').eq('user_id',s.user.id).maybeSingle();
+  const{data,error}=await sb.from('membros').select('user_id,papel').eq('user_id',s.user.id).maybeSingle();
   if(error){banner('Não consegui verificar seu acesso. Verifique a conexão e recarregue a página.','bad');S.acesso=null;render();return}
-  S.acesso=data?'ok':'negado';
+  S.acesso=data?'ok':'negado';S.papel=data?.papel||null;
   if(data)await carrega();
   render();
 }
@@ -337,7 +339,7 @@ function inicia(){
 addEventListener('focus',async()=>{
   if(S.acesso!=='ok'||Date.now()-S.ultimaCarga<30000)return;
   await carrega();
-  if(S.view==='painel'||S.view==='historico'||(S.view==='custos'&&!S.dirty))render();
+  if(S.view==='painel'||S.view==='planilhas'||S.view==='historico'||(S.view==='custos'&&!S.dirty))render();
 });
 
 /* ---------- importação ---------- */
@@ -350,7 +352,7 @@ async function handleFile(file){
     if(!r.dias.length)throw new Error('Encontrei a tabela, mas todas as colunas de data estão vazias ou zeradas. Confira se é o arquivo certo.');
     S.prev=r;
   }catch(e){S.err=e.message&&/CLIENTE|colunas|leitor/.test(e.message)?e.message:'Não consegui abrir esse arquivo. Envie um Excel (.xlsx ou .xls) ou CSV.'}
-  S.view='painel';location.hash='painel';render();
+  S.view=S.papel==='gerente'?'planilhas':'painel';location.hash=S.view;render();
 }
 async function salvaPrev(){
   const p=S.prev;if(!p)return;
@@ -530,6 +532,17 @@ function loginHTML(){
 function negadoHTML(){
   return `<section class="panel login"><h2>Conta sem acesso</h2><p class="muted" style="margin:0">Esta conta ainda não foi liberada para ver os dados do Caixa Diário.</p><button class="btn" data-act="sair">Sair</button></section>`;
 }
+function planilhasHTML(){
+  const lista=Object.keys(S.dias).sort().reverse();
+  if(!S.loaded.dias)return'<p class="muted">Carregando…</p>';
+  const erro=S.err?`<div class="note bad">${esc(S.err)}</div>`:'';
+  const rows=lista.map(k=>{const d=S.dias[k];
+    return `<tr><td>${fmtDia(k)}</td><td>${brl(d.total)}</td><td class="left muted small">${esc(d.arquivo||'')}</td><td class="muted small">${d.importadoEm?new Date(d.importadoEm).toLocaleString('pt-BR',{dateStyle:'short',timeStyle:'short'}):''}</td></tr>`}).join('');
+  return `${erro}${S.prev?prevHTML():dropHTML(!lista.length)}
+  ${lista.length?`<section class="panel"><div class="head"><h2>Planilhas enviadas</h2><span class="muted small">${lista.length} ${lista.length===1?'dia':'dias'}</span></div>
+    <div class="scroll"><table><thead><tr><th>Data</th><th>Total</th><th class="left">Arquivo</th><th>Enviada em</th></tr></thead><tbody>${rows}</tbody></table></div>
+    <p class="muted small" style="margin:12px 0 0">Para corrigir um dia, envie a planilha dele de novo. Para excluir, fale com quem administra a dash.</p></section>`:''}`;
+}
 function contaHTML(){
   return `<section class="panel conta form"><h2>Conta</h2>
     <p class="muted" style="margin:0">E-mail da conta: ${esc(S.sessao.user.email)}</p>
@@ -542,14 +555,17 @@ function contaHTML(){
     <button class="btn" data-act="sair">Sair da conta</button></section>`;
 }
 function render(){
-  document.querySelectorAll('#nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.go===S.view));
+  const gerente=S.papel==='gerente';
+  if(gerente&&S.view!=='planilhas'&&S.view!=='conta')S.view='planilhas';
+  if(!gerente&&S.view==='planilhas')S.view='painel';
+  document.querySelectorAll('#nav button').forEach(b=>{b.setAttribute('aria-current',b.dataset.go===S.view);b.hidden=!!b.dataset.papel&&b.dataset.papel!==(gerente?'gerente':'dono')});
   $('#nav').hidden=S.acesso!=='ok';
   const app=$('#app');
   if(!S.authPronto){app.innerHTML='<p class="muted">Carregando…</p>';return}
   if(!S.sessao){app.innerHTML=sb?loginHTML():'';return}
   if(S.acesso==='negado'){app.innerHTML=negadoHTML();return}
   if(S.acesso!=='ok'){app.innerHTML='';return}
-  app.innerHTML=S.view==='conta'?contaHTML():S.view==='custos'?custosHTML():S.view==='historico'?historicoHTML():painelHTML();
+  app.innerHTML=S.view==='conta'?contaHTML():S.view==='planilhas'?planilhasHTML():S.view==='custos'?custosHTML():S.view==='historico'?historicoHTML():painelHTML();
   if(S.view==='custos')resumoCustos();
   drawChart();
 }
@@ -706,7 +722,7 @@ async function salvaCustos(){
   z.classList.toggle('over',tp==='dragover');
   if(tp==='drop'&&e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);
 }));
-function rota(){const h=location.hash.slice(1);if(['painel','custos','historico','conta'].includes(h)&&h!==S.view){S.view=h;render()}}
+function rota(){const h=location.hash.slice(1);if(['painel','planilhas','custos','historico','conta'].includes(h)&&h!==S.view){S.view=h;render()}}
 addEventListener('hashchange',rota);
 rota();render();inicia();
 </script>
