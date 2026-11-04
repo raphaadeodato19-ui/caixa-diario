@@ -1,0 +1,657 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="robots" content="noindex,nofollow">
+<meta name="referrer" content="no-referrer">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://comlcgiiyoaurejcddsj.supabase.co; img-src 'self' data:; base-uri 'none'; form-action 'none'; object-src 'none'">
+<title>Caixa Diário</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+/* Layout: mesa de conferência. O dia em forma de extrato no topo, o mês logo abaixo, detalhes por cliente e equipe no fim. */
+:root{
+  --bg:#EDF1F0;--surface:#FBFCFC;--sunken:#E2E8E7;--line:#CDD6D5;
+  --fg:#14211F;--muted:#55666A;--accent:#0B6467;--accent-ink:#FFFFFF;--accent-soft:#D5E9E8;
+  --pos:#0B6467;--neg:#B3362C;--neg-soft:#F6DFDC;--warn:#7A5600;--warn-soft:#F5EACB;
+  --display:"Bricolage Grotesque","Avenir Next",system-ui,sans-serif;
+  --body:"IBM Plex Sans","Helvetica Neue",Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0F1718;--surface:#172224;--sunken:#0B1213;--line:#2C3B3D;
+  --fg:#E7EFEE;--muted:#9DB0B1;--accent:#5CC4BF;--accent-ink:#06211F;--accent-soft:#17393A;
+  --pos:#5CC4BF;--neg:#F0857A;--neg-soft:#40201D;--warn:#E9C466;--warn-soft:#3A2F12;color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0F1718;--surface:#172224;--sunken:#0B1213;--line:#2C3B3D;
+  --fg:#E7EFEE;--muted:#9DB0B1;--accent:#5CC4BF;--accent-ink:#06211F;--accent-soft:#17393A;
+  --pos:#5CC4BF;--neg:#F0857A;--neg-soft:#40201D;--warn:#E9C466;--warn-soft:#3A2F12;color-scheme:dark}
+*{box-sizing:border-box}
+:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+[hidden]{display:none!important}
+img{max-width:100%}
+.login{max-width:380px;width:100%;margin:6vh auto 0;display:grid;gap:12px}
+.conta{max-width:420px}
+body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 var(--body);font-variant-numeric:tabular-nums}
+.wrap{max-width:1080px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 56px;display:grid;gap:20px}
+header.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;justify-content:space-between}
+h1{font:700 26px/1.1 var(--display);margin:0;letter-spacing:-.01em}
+h2{font:700 18px/1.2 var(--display);margin:0;text-wrap:balance}
+nav{display:flex;gap:4px;background:var(--sunken);padding:4px;border-radius:8px}
+nav button{border:0;background:transparent;color:var(--muted);font:500 14px var(--body);padding:7px 12px;border-radius:5px;cursor:pointer}
+nav button[aria-current="true"]{background:var(--surface);color:var(--fg)}
+h2.cap::first-letter{text-transform:uppercase}
+button,select,input{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.btn{border:1px solid var(--line);background:var(--surface);padding:8px 13px;border-radius:6px;cursor:pointer;font-weight:500}
+.btn:hover{border-color:var(--accent)}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.btn.danger{color:var(--neg);border-color:var(--neg)}
+.btn.small{padding:4px 9px;font-size:13px}
+.link{background:none;border:0;padding:0;color:var(--accent);font-weight:600;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:18px;min-width:0}
+.head{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;justify-content:space-between;margin-bottom:14px}
+.muted{color:var(--muted)} .small{font-size:13px}
+.note{padding:10px 13px;border-radius:6px;font-size:14px;display:flex;flex-wrap:wrap;gap:6px 12px;align-items:center;justify-content:space-between}
+.note.warn{background:var(--warn-soft);color:var(--warn)} .note.bad{background:var(--neg-soft);color:var(--neg)} .note.ok{background:var(--accent-soft);color:var(--fg)}
+.drop{border:1.5px dashed var(--line);border-radius:8px;padding:14px 16px;display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between;background:transparent}
+.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop input{position:absolute;width:1px;height:1px;opacity:0}
+.drop.big{padding:44px 20px;flex-direction:column;text-align:center;justify-content:center}
+.daynav{display:flex;gap:6px;align-items:center}
+.daynav select{padding:7px 8px;border:1px solid var(--line);border-radius:6px;background:var(--surface);max-width:100%;min-width:0}
+.day{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:24px;align-items:center}
+.eyebrow{font-size:12px;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);font-weight:600}
+.hero{font:700 clamp(38px,7vw,58px)/1.05 var(--display);letter-spacing:-.02em;margin:6px 0 8px;overflow-wrap:anywhere}
+.hero.neg{color:var(--neg)}
+.pill{display:inline-block;padding:2px 9px;border-radius:99px;font-size:13px;font-weight:600;background:var(--accent-soft)}
+.pill.neg{background:var(--neg-soft);color:var(--neg)}
+.ledger{display:grid;gap:0}
+.ledger div{display:flex;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid var(--line)}
+.ledger div:last-child{border-bottom:0;border-top:2px solid var(--fg);margin-top:-1px;font-weight:600}
+.ledger span:last-child{white-space:nowrap}
+.tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:0}
+.tile{padding:2px 16px;border-left:1px solid var(--line);min-width:0}
+.tile:first-child{border-left:0;padding-left:0}
+.tile b{display:block;font:700 22px/1.25 var(--display);margin-top:3px;overflow-wrap:anywhere}
+.tile b.neg{color:var(--neg)}
+.grid2{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:20px;align-items:start}
+#chart{position:relative;min-height:230px}
+#chart svg{display:block;width:100%}
+.tip{position:absolute;pointer-events:none;background:var(--fg);color:var(--bg);padding:6px 9px;border-radius:5px;font-size:13px;white-space:nowrap;z-index:2}
+.seg{display:inline-flex;background:var(--sunken);padding:3px;border-radius:6px}
+.seg button{border:0;background:none;padding:3px 10px;border-radius:4px;font-size:13px;cursor:pointer;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--fg);font-weight:600}
+.rank{display:grid;gap:9px}
+.rank .row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 12px;font-size:14px}
+.rank .bar{grid-column:1/-1;height:6px;background:var(--sunken);border-radius:3px;overflow:hidden}
+.rank .bar i{display:block;height:100%;background:var(--accent);border-radius:0 3px 3px 0}
+.rank .bar i.neg{background:var(--neg)}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:14px}
+th{font-size:12px;color:var(--muted);font-weight:600;text-align:right;padding:6px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{text-align:right;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+th:first-child,td:first-child{text-align:left;padding-left:0}
+td.left,th.left{text-align:left}
+td.neg{color:var(--neg)}
+tbody tr:last-child td{border-bottom:0}
+tr.sel td{background:var(--accent-soft)}
+details summary{cursor:pointer;color:var(--muted);font-size:13px}
+.form{display:grid;gap:10px}
+.f{display:grid;gap:3px;min-width:0}
+.f label,.flabel{font-size:12px;font-weight:600;color:var(--muted)}
+.f input,.f select{padding:7px 9px;border:1px solid var(--line);border-radius:5px;background:var(--bg);width:100%;min-width:0}
+.line{display:grid;grid-template-columns:minmax(0,1fr) 130px auto;gap:8px;align-items:end}
+.person{border:1px solid var(--line);border-radius:6px;padding:12px;display:grid;gap:10px}
+.person .cols{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr) minmax(0,.7fr) minmax(0,1.2fr) auto;gap:8px;align-items:end}
+.checks{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:4px 12px;font-size:14px;margin-top:8px}
+.checks label{display:flex;gap:6px;align-items:center;min-width:0;overflow-wrap:anywhere}
+.savebar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:9px 15px;border-radius:6px;font-size:14px;z-index:5;max-width:90vw}
+.stack{display:grid;gap:20px}
+@media (max-width:760px){
+  .day,.grid2{grid-template-columns:minmax(0,1fr)}
+  .tiles{grid-template-columns:repeat(2,minmax(0,1fr));row-gap:14px}
+  .tile:nth-child(odd){border-left:0;padding-left:0}
+  .person .cols{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
+  .line{grid-template-columns:minmax(0,1fr) 110px auto}
+}
+@media (prefers-reduced-motion:no-preference){.rank .bar i{transition:width .2s}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Caixa Diário</h1>
+    <nav aria-label="Seções" id="nav" hidden>
+      <button data-go="painel">Painel</button>
+      <button data-go="custos">Custos e equipe</button>
+      <button data-go="historico">Histórico</button>
+      <button data-go="conta">Conta</button>
+    </nav>
+  </header>
+  <div id="banner"></div>
+  <main id="app" class="stack"><p class="muted">Carregando seus dados…</p></main>
+</div>
+<div id="toast" class="toast" hidden></div>
+
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="vendor/supabase.js"></script>
+<script>
+/* ---------- utilitários ---------- */
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const cents=n=>Math.round((Number(n)||0)*100)/100;
+const fmtBRL=new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'});
+const brl=n=>fmtBRL.format(cents(n));
+const brl0=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(n);
+const norm=s=>String(s??'').trim().replace(/\s+/g,' ').toUpperCase();
+const uid=()=>Math.random().toString(36).slice(2,10);
+const clone=o=>JSON.parse(JSON.stringify(o));
+const pad=n=>String(n).padStart(2,'0');
+const toD=iso=>{const[y,m,d]=iso.split('-').map(Number);return new Date(y,m-1,d)};
+const fmtDia=iso=>iso.split('-').reverse().join('/');
+const fmtDiaLongo=iso=>toD(iso).toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
+const fmtMes=m=>{const[y,mo]=m.split('-').map(Number);return new Date(y,mo-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'})};
+const mesAtual=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)};
+
+/* ---------- leitura da planilha ---------- */
+function parseMoney(v){
+  if(typeof v==='number')return isFinite(v)?v:null;
+  if(v==null)return null;
+  let s=String(v).trim();if(!s)return null;
+  const neg=/^\(.*\)$/.test(s)||/-/.test(s);
+  s=s.replace(/[^\d.,]/g,'');if(!/\d/.test(s))return null;
+  const c=s.lastIndexOf(','),p=s.lastIndexOf('.');
+  if(c>-1&&p>-1)s=c>p?s.replace(/\./g,'').replace(',','.'):s.replace(/,/g,'');
+  else if(c>-1)s=s.replace(/\./g,'').replace(',','.');
+  else if(p>-1&&/^\d{1,3}(\.\d{3})+$/.test(s))s=s.replace(/\./g,'');
+  const n=parseFloat(s);if(!isFinite(n))return null;
+  return neg?-n:n;
+}
+function validISO(y,m,d){
+  if(m<1||m>12||d<1)return null;
+  const dt=new Date(Date.UTC(y,m-1,d));
+  if(dt.getUTCMonth()!==m-1||dt.getUTCDate()!==d)return null;
+  return y+'-'+pad(m)+'-'+pad(d);
+}
+function parseDate(c,date1904){
+  if(typeof c==='number'){
+    if(c<36526||c>73050)return null; /* só 2000 a 2099 */
+    const n=Math.floor(c)+(date1904?1462:0);
+    return new Date(Date.UTC(1899,11,30)+n*864e5).toISOString().slice(0,10);
+  }
+  if(typeof c!=='string')return null;
+  const s=c.trim();let m;
+  if((m=s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4}|\d{2})$/))){
+    const y=+m[3]<100?2000+ +m[3]:+m[3];return validISO(y,+m[2],+m[1]);
+  }
+  if((m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/)))return validISO(+m[1],+m[2],+m[3]);
+  return null;
+}
+/* Procura a linha com "CLIENTE"; cada coluna com data no cabeçalho vira um dia. */
+function parseWorkbook(buf,nome){
+  const isText=/\.(csv|tsv|txt)$/i.test(nome);
+  const wb=XLSX.read(buf,{type:'array',raw:isText});
+  const date1904=!!wb.Workbook?.WBProps?.date1904;
+  const dias=new Map();const avisos=[];let ignoradas=0,achouTabela=false;
+  for(const sn of wb.SheetNames){
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,raw:true,defval:null});
+    let hi=-1,ci=-1;
+    for(let i=0;i<Math.min(rows.length,40)&&hi<0;i++){
+      const k=(rows[i]||[]).findIndex(c=>typeof c==='string'&&norm(c).startsWith('CLIENTE'));
+      if(k>-1){hi=i;ci=k}
+    }
+    if(hi<0)continue;
+    const cols=[];(rows[hi]||[]).forEach((c,j)=>{if(j!==ci){const d=parseDate(c,date1904);if(d)cols.push({j,d})}});
+    if(!cols.length)continue;
+    achouTabela=true;
+    for(const{j,d}of cols){
+      const mapa=new Map();let arq=null;
+      for(let i=hi+1;i<rows.length;i++){
+        const r=rows[i]||[];const n=norm(r[ci]);if(!n)continue;
+        if(n.startsWith('TOTAL')){arq=parseMoney(r[j]);break}
+        const v=parseMoney(r[j]);
+        if(mapa.has(n)){avisos.push(`Cliente repetido em ${fmtDia(d)}: ${n}. Os valores foram somados.`);mapa.get(n).valor=cents(mapa.get(n).valor+(v||0))}
+        else mapa.set(n,{cliente:String(r[ci]).trim().replace(/\s+/g,' '),valor:cents(v||0)});
+      }
+      const linhas=[...mapa.values()];
+      if(!linhas.some(l=>l.valor!==0)){ignoradas++;continue}
+      const total=cents(linhas.reduce((a,l)=>a+l.valor,0));
+      if(arq!=null&&Math.abs(arq-total)>0.009)avisos.push(`Em ${fmtDia(d)} a soma dos clientes dá ${brl(total)}, mas a linha TOTAL da planilha mostra ${brl(arq)}. A dash usa a soma dos clientes.`);
+      if(dias.has(d))avisos.push(`A data ${fmtDia(d)} aparece mais de uma vez. Ficou a última coluna lida.`);
+      dias.set(d,{data:d,linhas,total,arquivo:nome,totalArquivo:arq});
+    }
+  }
+  if(!achouTabela)throw new Error('Não encontrei a tabela. A planilha precisa de uma linha com "CLIENTE" e, ao lado, uma coluna com a data do dia, como 09/10/2026.');
+  return{dias:[...dias.values()].sort((a,b)=>a.data<b.data?-1:1),avisos,ignoradas};
+}
+
+/* ---------- cálculo ---------- */
+const CFG0={fixos:[],funcionarias:[],dias:26};
+function cfgDoMes(mes){
+  const ks=Object.keys(S.custos).sort();if(!ks.length)return CFG0;
+  let k=null;for(const x of ks)if(x<=mes)k=x;
+  return S.custos[k||ks[0]];
+}
+const somaFixos=c=>c.fixos.reduce((a,f)=>a+(+f.valor||0),0);
+const somaSal=c=>c.funcionarias.reduce((a,f)=>a+(+f.salario||0),0);
+const custoMes=c=>somaFixos(c)+somaSal(c);
+const custoDia=c=>custoMes(c)/Math.max(1,+c.dias||1);
+function comissaoDe(f,dia){
+  let base=dia.total;
+  if(f.base==='carteira'){const s=new Set((f.clientes||[]).map(norm));base=dia.linhas.filter(l=>s.has(norm(l.cliente))).reduce((a,l)=>a+l.valor,0)}
+  return cents(base*(+f.pct||0)/100);
+}
+function calcDia(dia){
+  const c=cfgDoMes(dia.data.slice(0,7));
+  const por=c.funcionarias.map(f=>({id:f.id,valor:comissaoDe(f,dia)}));
+  const comissoes=cents(por.reduce((a,p)=>a+p.valor,0));
+  const custo=cents(custoDia(c));
+  return{receita:dia.total,comissoes,custo,lucro:cents(dia.total-comissoes-custo),por};
+}
+function diasDoMes(mes){return Object.values(S.dias).filter(d=>d.data.startsWith(mes)).sort((a,b)=>a.data<b.data?-1:1)}
+function calcMes(mes){
+  const ds=diasDoMes(mes),c=cfgDoMes(mes);
+  const t={receita:0,comissoes:0,custo:0,lucro:0,n:ds.length,porFunc:{}};
+  for(const d of ds){const r=calcDia(d);t.receita+=r.receita;t.comissoes+=r.comissoes;t.custo+=r.custo;t.lucro+=r.lucro;r.por.forEach(p=>t.porFunc[p.id]=(t.porFunc[p.id]||0)+p.valor)}
+  t.custoMes=custoMes(c);t.cobertura=cents(t.receita-t.comissoes-t.custoMes);t.cfg=c;
+  return t;
+}
+
+/* ---------- estado e persistência ---------- */
+const S={dias:{},custos:{},view:'painel',date:null,clientesPor:'dia',prev:null,err:null,loaded:{dias:false,custos:false},draft:null,dirty:false,confirm:null,toastT:0,sessao:null,acesso:null,authPronto:false,ultimaCarga:0};
+/* Chave pública do Supabase: quem protege os dados são o login e as regras de acesso do banco. */
+const SB_URL='https://comlcgiiyoaurejcddsj.supabase.co',SB_KEY='sb_publishable_lEsm-yhizYahUBABB2YPJA_YW_QfrSQ';
+const sb=window.supabase?window.supabase.createClient(SB_URL,SB_KEY):null;
+const rowDia=r=>({data:r.data,linhas:r.linhas||[],total:+r.total,totalArquivo:r.total_arquivo==null?null:+r.total_arquivo,arquivo:r.arquivo,importadoEm:r.importado_em});
+const rowCusto=r=>({mes:r.mes,dias:r.dias,fixos:r.fixos||[],funcionarias:r.funcionarias||[],atualizadoEm:r.atualizado_em});
+async function grava(col,id,d){
+  const row=col==='dias'
+    ?{data:d.data,linhas:d.linhas,total:d.total,total_arquivo:d.totalArquivo??null,arquivo:d.arquivo??null,importado_em:d.importadoEm}
+    :{mes:d.mes,dias:d.dias,fixos:d.fixos,funcionarias:d.funcionarias,atualizado_em:d.atualizadoEm};
+  const{data,error}=await sb.from(col).upsert(row).select().single();
+  if(error)throw error;
+  S[col][id]=col==='dias'?rowDia(data):rowCusto(data);
+}
+async function apaga(col,id){
+  const{data,error}=await sb.from(col).delete().eq(col==='dias'?'data':'mes',id).select();
+  if(error)throw error;
+  if(!data.length)throw{code:'42501'};
+  delete S[col][id];
+}
+async function carrega(){
+  const[d,c]=await Promise.all([sb.from('dias').select('*').order('data'),sb.from('custos').select('*').order('mes')]);
+  if(d.error||c.error){banner('Não consegui buscar os dados. Verifique a conexão e recarregue a página.','bad');return}
+  S.dias=Object.fromEntries(d.data.map(r=>[r.data,rowDia(r)]));
+  S.custos=Object.fromEntries(c.data.map(r=>[r.mes,rowCusto(r)]));
+  S.loaded={dias:true,custos:true};S.ultimaCarga=Date.now();banner('');
+  if(S.view==='custos'&&!S.dirty)S.draft=null;
+}
+async function aplicaSessao(s){
+  const antes=S.sessao?.user?.id;S.sessao=s;S.authPronto=true;
+  if(!s){
+    Object.assign(S,{dias:{},custos:{},acesso:null,date:null,prev:null,err:null,draft:null,dirty:false,draftMes:null,loaded:{dias:false,custos:false}});
+    render();return;
+  }
+  if(antes===s.user.id&&S.acesso)return; /* só renovou o token */
+  const{data,error}=await sb.from('membros').select('user_id').eq('user_id',s.user.id).maybeSingle();
+  if(error){banner('Não consegui verificar seu acesso. Verifique a conexão e recarregue a página.','bad');S.acesso=null;render();return}
+  S.acesso=data?'ok':'negado';
+  if(data)await carrega();
+  render();
+}
+function toast(msg){const t=$('#toast');t.textContent=msg;t.hidden=false;clearTimeout(S.toastT);S.toastT=setTimeout(()=>t.hidden=true,3500)}
+function errMsg(e){
+  const c=e&&e.code;
+  if(c==='42501')return'Sua conta não tem permissão para salvar nesta dash.';
+  return'Não foi possível salvar. Verifique a conexão e tente de novo.';
+}
+function banner(msg,kind='warn'){$('#banner').innerHTML=msg?`<div class="note ${kind}">${esc(msg)}</div>`:''}
+function inicia(){
+  if(!sb){S.authPronto=true;banner('O sistema de login não carregou. Verifique a conexão e recarregue a página.','bad');render();return}
+  /* setTimeout: chamadas ao Supabase dentro deste aviso podem travar a sessão */
+  sb.auth.onAuthStateChange((ev,s)=>setTimeout(()=>aplicaSessao(s),0));
+}
+addEventListener('focus',async()=>{
+  if(S.acesso!=='ok'||Date.now()-S.ultimaCarga<30000)return;
+  await carrega();
+  if(S.view==='painel'||S.view==='historico'||(S.view==='custos'&&!S.dirty))render();
+});
+
+/* ---------- importação ---------- */
+async function handleFile(file){
+  if(!file)return;
+  S.err=null;S.prev=null;
+  try{
+    if(!window.XLSX)throw new Error('O leitor de planilhas não carregou. Verifique a conexão e recarregue a página.');
+    const r=parseWorkbook(new Uint8Array(await file.arrayBuffer()),file.name);
+    if(!r.dias.length)throw new Error('Encontrei a tabela, mas todas as colunas de data estão vazias ou zeradas. Confira se é o arquivo certo.');
+    S.prev=r;
+  }catch(e){S.err=e.message&&/CLIENTE|colunas|leitor/.test(e.message)?e.message:'Não consegui abrir esse arquivo. Envie um Excel (.xlsx ou .xls) ou CSV.'}
+  S.view='painel';location.hash='painel';render();
+}
+async function salvaPrev(){
+  const p=S.prev;if(!p)return;
+  try{
+    for(const d of p.dias)await grava('dias',d.data,{...d,importadoEm:new Date().toISOString()});
+    S.date=p.dias[p.dias.length-1].data;S.prev=null;
+    toast(p.dias.length===1?`Dia ${fmtDia(S.date)} salvo.`:`${p.dias.length} dias salvos.`);render();
+  }catch(e){S.err=errMsg(e);render()}
+}
+
+/* ---------- telas ---------- */
+function dropHTML(big){
+  return `<label class="drop ${big?'big':''}" id="drop">
+    <span><b>${big?'Envie a primeira planilha':'Planilha do dia'}</b><br><span class="muted small">Arraste o Excel para cá. Enviar um dia de novo substitui o que estava salvo, sem duplicar.</span></span>
+    <span class="btn primary">Escolher arquivo</span>
+    <input type="file" id="arquivo" accept=".xlsx,.xls,.xlsm,.csv">
+  </label>`;
+}
+function prevHTML(){
+  const p=S.prev;if(!p)return'';
+  const rows=p.dias.map(d=>{
+    const ant=S.dias[d.data];
+    return `<tr><td>${fmtDia(d.data)}</td><td>${d.linhas.filter(l=>l.valor!==0).length} de ${d.linhas.length}</td><td>${brl(d.total)}</td><td class="left">${ant?`Substitui ${brl(ant.total)}`:'Dia novo'}</td></tr>`}).join('');
+  return `<section class="panel"><div class="head"><h2>Confira antes de salvar</h2></div>
+    <div class="scroll"><table><thead><tr><th>Data</th><th>Clientes com valor</th><th>Total</th><th class="left">Situação</th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${p.ignoradas?`<p class="muted small">${p.ignoradas} coluna(s) de data sem valores foram ignoradas.</p>`:''}
+    ${p.avisos.map(a=>`<div class="note warn" style="margin-top:8px">${esc(a)}</div>`).join('')}
+    <div class="savebar" style="margin-top:14px"><span></span><span style="display:flex;gap:8px"><button class="btn" data-act="cancelaPrev">Cancelar</button><button class="btn primary" data-act="salvaPrev">Salvar ${p.dias.length===1?'dia':p.dias.length+' dias'}</button></span></div></section>`;
+}
+function painelHTML(){
+  const lista=Object.keys(S.dias).sort();
+  if(!S.loaded.dias&&!lista.length)return'<p class="muted">Carregando seus dados…</p>';
+  const erro=S.err?`<div class="note bad">${esc(S.err)}</div>`:'';
+  if(!lista.length)return erro+(S.prev?prevHTML():dropHTML(true));
+  if(!S.date||!S.dias[S.date])S.date=lista[lista.length-1];
+  const dia=S.dias[S.date],r=calcDia(dia),mes=S.date.slice(0,7),m=calcMes(mes),c=m.cfg;
+  const semCustos=!c.fixos.length&&!c.funcionarias.length;
+  const i=lista.indexOf(S.date);
+  const opts=[...lista].reverse().map(d=>`<option value="${d}" ${d===S.date?'selected':''}>${fmtDiaLongo(d)}</option>`).join('');
+  const cobre=m.cobertura>=0;
+  return `${erro}${S.prev?prevHTML():dropHTML(false)}
+  ${semCustos?`<div class="note warn"><span>Sem custos cadastrados, o lucro abaixo ainda é só o total da planilha.</span><button class="link" data-go="custos">Cadastrar gastos e funcionárias</button></div>`:''}
+  <section class="panel">
+    <div class="head"><h2>Resultado do dia</h2>
+      <div class="daynav"><button class="btn small" data-act="dia" data-to="${lista[i-1]||''}" ${i>0?'':'disabled'} aria-label="Dia anterior">‹</button>
+      <select id="sel-dia" aria-label="Escolher dia">${opts}</select>
+      <button class="btn small" data-act="dia" data-to="${lista[i+1]||''}" ${i<lista.length-1?'':'disabled'} aria-label="Próximo dia">›</button></div></div>
+    <div class="day">
+      <div><div class="eyebrow">Lucro do dia</div><div class="hero ${r.lucro<0?'neg':''}">${brl(r.lucro)}</div>
+        <span class="pill ${r.lucro<0?'neg':''}">${r.lucro<0?'▼ No vermelho':'▲ No azul'}</span></div>
+      <div class="ledger">
+        <div><span>Total da planilha</span><span>${brl(r.receita)}</span></div>
+        <div><span>− Comissões</span><span>${brl(r.comissoes)}</span></div>
+        <div><span>− Custos do dia <span class="muted small">(${brl(m.custoMes)} ÷ ${c.dias} dias)</span></span><span>${brl(r.custo)}</span></div>
+        <div><span>= Lucro</span><span>${brl(r.lucro)}</span></div>
+      </div>
+    </div>
+  </section>
+  <section class="panel">
+    <div class="head"><h2 class="cap">${fmtMes(mes)}</h2><span class="muted small">${m.n} ${m.n===1?'dia importado':'dias importados'} de ${c.dias} de funcionamento</span></div>
+    <div class="tiles">
+      <div class="tile"><span class="muted small">Total das planilhas</span><b>${brl(m.receita)}</b></div>
+      <div class="tile"><span class="muted small">Comissões</span><b>${brl(m.comissoes)}</b></div>
+      <div class="tile"><span class="muted small">Custos dos dias importados</span><b>${brl(m.custo)}</b></div>
+      <div class="tile"><span class="muted small">Lucro acumulado</span><b class="${m.lucro<0?'neg':''}">${brl(m.lucro)}</b></div>
+    </div>
+    ${m.custoMes>0?`<p class="small" style="margin:14px 0 0">${cobre?`Os custos de ${brl(m.custoMes)} do mês já estão cobertos, com sobra de <b>${brl(m.cobertura)}</b>.`:`Faltam <b>${brl(-m.cobertura)}</b> para cobrir os ${brl(m.custoMes)} de custos do mês.`}</p>`:''}
+    <div style="margin-top:18px"><div class="eyebrow" style="margin-bottom:6px">Lucro por dia</div><div id="chart" data-mes="${mes}"></div></div>
+  </section>
+  ${equipeHTML(r,m,c)}
+  ${clientesHTML(dia,mes)}`;
+}
+function clientesHTML(dia,mes){
+  const mapa=new Map();
+  (S.clientesPor==='dia'?[dia]:diasDoMes(mes)).forEach(d=>d.linhas.forEach(l=>{const k=norm(l.cliente);const e=mapa.get(k)||{cliente:l.cliente,valor:0};e.valor=cents(e.valor+l.valor);mapa.set(k,e)}));
+  const todos=[...mapa.values()].sort((a,b)=>b.valor-a.valor);
+  const com=todos.filter(l=>l.valor!==0),sem=todos.filter(l=>l.valor===0);
+  const max=Math.max(1e-9,...com.map(l=>Math.abs(l.valor)));
+  const tot=com.reduce((a,l)=>a+l.valor,0)||1;
+  return `<section class="panel"><div class="head"><h2>Clientes</h2>
+    <div class="seg"><button data-act="clientes" data-to="dia" aria-pressed="${S.clientesPor==='dia'}">Dia</button><button data-act="clientes" data-to="mes" aria-pressed="${S.clientesPor==='mes'}">Mês</button></div></div>
+    <div class="rank">${com.map(l=>`<div class="row"><span style="overflow-wrap:anywhere">${esc(l.cliente)}</span><span>${brl(l.valor)} <span class="muted small">${Math.round(l.valor/tot*100)}%</span></span><div class="bar"><i class="${l.valor<0?'neg':''}" style="width:${Math.abs(l.valor)/max*100}%"></i></div></div>`).join('')||'<p class="muted">Nenhum cliente com valor.</p>'}</div>
+    ${sem.length?`<details style="margin-top:12px"><summary>${sem.length} clientes sem valor</summary><p class="small muted" style="margin:6px 0 0">${sem.map(l=>esc(l.cliente)).join(', ')}</p></details>`:''}
+  </section>`;
+}
+function equipeHTML(r,m,c){
+  if(!c.funcionarias.length)return `<section class="panel"><div class="head"><h2>Equipe</h2></div><p class="muted" style="margin:0 0 10px">Cadastre as funcionárias para ver a comissão de cada uma por dia e por mês.</p><button class="btn" data-go="custos">Adicionar funcionária</button></section>`;
+  const linhas=c.funcionarias.map(f=>{
+    const d=r.por.find(p=>p.id===f.id)?.valor||0,ms=cents(m.porFunc[f.id]||0);
+    return `<tr><td>${esc(f.nome)}<br><span class="muted small">${(+f.pct||0).toLocaleString('pt-BR')}% ${f.base==='carteira'?'dos clientes dela':'do total'}</span></td><td>${brl(d)}</td><td>${brl(ms)}</td><td>${brl(+f.salario||0)}</td><td><b>${brl((+f.salario||0)+ms)}</b></td></tr>`}).join('');
+  return `<section class="panel"><div class="head"><h2>Equipe</h2></div><div class="scroll"><table><thead><tr><th>Funcionária</th><th>Comissão dia</th><th>Comissão mês</th><th>Salário</th><th>A pagar</th></tr></thead><tbody>${linhas}</tbody></table></div></section>`;
+}
+function mesesOpts(){
+  const ks=[...Object.keys(S.dias).map(d=>d.slice(0,7)),...Object.keys(S.custos),mesAtual()].sort();
+  let [y,m]=ks[0].split('-').map(Number);const fim=ks[ks.length-1];const out=[];
+  while(true){const k=y+'-'+pad(m);out.push(k);if(k>=fim)break;m++;if(m>12){m=1;y++}}
+  return out.reverse();
+}
+function custosHTML(){
+  if(!S.draft){
+    const mes=S.draftMes||(S.date?S.date.slice(0,7):(Object.keys(S.dias).sort().pop()||mesAtual()+'-01').slice(0,7));
+    S.draft={...clone(cfgDoMes(mes)),mes};S.dirty=false;
+  }
+  const d=S.draft;
+  const clientes=[...new Map(Object.values(S.dias).flatMap(x=>x.linhas).map(l=>[norm(l.cliente),l.cliente])).values()].sort();
+  const fixos=d.fixos.map(f=>`<div class="line">
+    <div class="f"><label for="fx-n-${f.id}">Gasto</label><input id="fx-n-${f.id}" data-fx="${f.id}" data-k="nome" value="${esc(f.nome)}" placeholder="Aluguel"></div>
+    <div class="f"><label for="fx-v-${f.id}">Valor por mês</label><input id="fx-v-${f.id}" inputmode="decimal" data-fx="${f.id}" data-k="valor" value="${f.valor?String(f.valor).replace('.',','):''}" placeholder="0,00"></div>
+    <button class="btn small" data-act="rmFixo" data-id="${f.id}" aria-label="Remover ${esc(f.nome)}">Remover</button></div>`).join('');
+  const pessoas=d.funcionarias.map(f=>{
+    const sel=new Set((f.clientes||[]).map(norm));
+    return `<div class="person">
+    <div class="cols">
+      <div class="f"><label for="p-n-${f.id}">Nome</label><input id="p-n-${f.id}" data-p="${f.id}" data-k="nome" value="${esc(f.nome)}"></div>
+      <div class="f"><label for="p-s-${f.id}">Salário por mês</label><input id="p-s-${f.id}" inputmode="decimal" data-p="${f.id}" data-k="salario" value="${f.salario?String(f.salario).replace('.',','):''}" placeholder="0,00"></div>
+      <div class="f"><label for="p-c-${f.id}">Comissão %</label><input id="p-c-${f.id}" inputmode="decimal" data-p="${f.id}" data-k="pct" value="${f.pct?String(f.pct).replace('.',','):''}" placeholder="0"></div>
+      <div class="f"><label for="p-b-${f.id}">Comissão sobre</label><select id="p-b-${f.id}" data-p="${f.id}" data-k="base"><option value="todos" ${f.base!=='carteira'?'selected':''}>Total do dia</option><option value="carteira" ${f.base==='carteira'?'selected':''}>Clientes escolhidos</option></select></div>
+      <button class="btn small" data-act="rmFunc" data-id="${f.id}" aria-label="Remover ${esc(f.nome)}">Remover</button>
+    </div>
+    ${f.base==='carteira'?`<details ${sel.size?'':'open'}><summary>${sel.size} ${sel.size===1?'cliente escolhido':'clientes escolhidos'}</summary><div class="checks">${clientes.map(c=>`<label><input type="checkbox" data-cli="${f.id}" value="${esc(c)}" ${sel.has(norm(c))?'checked':''}>${esc(c)}</label>`).join('')||'<span class="muted">Importe uma planilha para listar os clientes.</span>'}</div></details>`:''}
+    </div>`}).join('');
+  return `<section class="panel"><div class="head"><h2>Valores de custos</h2>
+      <div class="f" style="min-width:190px"><label for="custos-mes">Valem a partir de</label><select id="custos-mes">${mesesOpts().map(m=>`<option value="${m}" ${m===d.mes?'selected':''}>${fmtMes(m)}</option>`).join('')}</select></div></div>
+    <p class="muted small" style="margin:0">Mudar um valor em novembro não altera o lucro de outubro. Cada mês usa os valores salvos para ele, ou os do último mês anterior com valores salvos.</p></section>
+  <div class="grid2">
+    <section class="panel form"><div class="head" style="margin:0"><h2>Gastos fixos</h2><button class="btn small" data-act="addFixo">Adicionar gasto</button></div>
+      ${fixos||'<p class="muted" style="margin:0">Aluguel, internet, contador, sistemas e outros gastos que se repetem todo mês.</p>'}</section>
+    <section class="panel form"><div class="head" style="margin:0"><h2>Rateio por dia</h2></div>
+      <div class="f" style="max-width:200px"><label for="dias-func">Dias de funcionamento no mês</label><input id="dias-func" type="number" min="1" max="31" value="${d.dias}"></div>
+      <div class="ledger" id="resumo"></div></section>
+  </div>
+  <section class="panel form"><div class="head" style="margin:0"><h2>Funcionárias</h2><button class="btn small" data-act="addFunc">Adicionar funcionária</button></div>
+    ${pessoas||'<p class="muted" style="margin:0">Informe o salário e a comissão de cada uma. A comissão pode ser sobre o total do dia ou só sobre os clientes dela.</p>'}</section>
+  <div class="savebar"><span class="small muted" id="salvo">${S.dirty?'Alterações ainda não salvas.':'Tudo salvo.'}</span><button class="btn primary" data-act="salvaCustos">Salvar valores de ${fmtMes(d.mes)}</button></div>
+  ${S.err?`<div class="note bad">${esc(S.err)}</div>`:''}`;
+}
+function resumoCustos(){
+  const el=$('#resumo');if(!el)return;const d=S.draft;
+  el.innerHTML=`<div><span>Gastos fixos</span><span>${brl(somaFixos(d))}</span></div><div><span>Salários</span><span>${brl(somaSal(d))}</span></div><div><span>Custo por dia</span><span>${brl(custoDia(d))}</span></div>`;
+}
+function historicoHTML(){
+  const lista=Object.keys(S.dias).sort().reverse();
+  if(!lista.length)return `<section class="panel"><h2>Histórico</h2><p class="muted">Os dias importados aparecem aqui.</p></section>`;
+  const rows=lista.map(k=>{const d=S.dias[k],r=calcDia(d);
+    return `<tr class="${k===S.date?'sel':''}"><td><button class="link" data-act="abre" data-to="${k}">${fmtDia(k)}</button></td><td>${brl(r.receita)}</td><td>${brl(r.comissoes)}</td><td>${brl(r.custo)}</td><td class="${r.lucro<0?'neg':''}"><b>${brl(r.lucro)}</b></td><td class="left muted small">${esc(d.arquivo||'')}</td>
+    <td>${S.confirm===k?`<button class="btn small danger" data-act="apaga" data-to="${k}">Confirmar exclusão</button>`:`<button class="btn small" data-act="confirma" data-to="${k}">Excluir</button>`}</td></tr>`}).join('');
+  return `<section class="panel"><div class="head"><h2>Histórico</h2><span class="muted small">${lista.length} ${lista.length===1?'dia':'dias'}</span></div>
+    <div class="scroll"><table><thead><tr><th>Data</th><th>Total</th><th>Comissões</th><th>Custos</th><th>Lucro</th><th class="left">Arquivo</th><th></th></tr></thead><tbody>${rows}</tbody></table></div></section>`;
+}
+function loginHTML(){
+  return `<form class="panel login" id="form-login" autocomplete="on">
+    <h2>Entrar</h2>
+    <div class="f"><label for="login-email">E-mail</label><input id="login-email" type="email" autocomplete="username" required></div>
+    <div class="f"><label for="login-senha">Senha</label><input id="login-senha" type="password" autocomplete="current-password" required></div>
+    <div class="note bad" id="login-erro" hidden></div>
+    <button class="btn primary" type="submit" id="login-btn">Entrar</button>
+    <p class="muted small" style="margin:0">Esqueceu a senha? Peça uma nova a quem administra a dash.</p>
+  </form>`;
+}
+function negadoHTML(){
+  return `<section class="panel login"><h2>Conta sem acesso</h2><p class="muted" style="margin:0">Esta conta ainda não foi liberada para ver os dados do Caixa Diário.</p><button class="btn" data-act="sair">Sair</button></section>`;
+}
+function contaHTML(){
+  return `<section class="panel conta form"><h2>Conta</h2>
+    <p class="muted" style="margin:0">E-mail da conta: ${esc(S.sessao.user.email)}</p>
+    <form class="form" id="form-senha">
+      <div class="f"><label for="nova-senha">Nova senha</label><input id="nova-senha" type="password" autocomplete="new-password" minlength="8" required></div>
+      <div class="f"><label for="nova-senha2">Repita a nova senha</label><input id="nova-senha2" type="password" autocomplete="new-password" minlength="8" required></div>
+      <div class="note" id="senha-msg" hidden></div>
+      <button class="btn primary" type="submit">Trocar senha</button>
+    </form>
+    <button class="btn" data-act="sair">Sair da conta</button></section>`;
+}
+function render(){
+  document.querySelectorAll('#nav button').forEach(b=>b.setAttribute('aria-current',b.dataset.go===S.view));
+  $('#nav').hidden=S.acesso!=='ok';
+  const app=$('#app');
+  if(!S.authPronto){app.innerHTML='<p class="muted">Carregando…</p>';return}
+  if(!S.sessao){app.innerHTML=sb?loginHTML():'';return}
+  if(S.acesso==='negado'){app.innerHTML=negadoHTML();return}
+  if(S.acesso!=='ok'){app.innerHTML='';return}
+  app.innerHTML=S.view==='conta'?contaHTML():S.view==='custos'?custosHTML():S.view==='historico'?historicoHTML():painelHTML();
+  if(S.view==='custos')resumoCustos();
+  drawChart();
+}
+
+/* ---------- gráfico ---------- */
+function niceStep(x){const p=Math.pow(10,Math.floor(Math.log10(x)));const f=x/p;return Math.max(1,(f<=1?1:f<=2?2:f<=5?5:10)*p)}
+function drawChart(){
+  const box=$('#chart');if(!box)return;
+  const mes=box.dataset.mes,[Y,M]=mes.split('-').map(Number),n=new Date(Y,M,0).getDate();
+  const w=Math.max(280,box.clientWidth),h=230,L=66,R=8,T=20,B=26;
+  const ds=diasDoMes(mes).map(d=>({data:d.data,dia:+d.data.slice(8),...calcDia(d)}));
+  const vals=ds.map(d=>d.lucro);
+  let lo=Math.min(0,...vals),hi=Math.max(0,...vals);if(lo===hi)hi=1;
+  const st=niceStep((hi-lo)/4);lo=Math.floor(lo/st)*st;hi=Math.ceil(hi/st)*st;
+  const y=v=>T+(hi-v)/(hi-lo)*(h-T-B),band=(w-L-R)/n,x=d=>L+(d-1)*band;
+  const bw=Math.max(3,Math.min(22,band*.62));
+  let s=`<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Lucro por dia em ${fmtMes(mes)}">`;
+  for(let v=lo;v<=hi+1e-6;v+=st){
+    s+=`<line x1="${L}" x2="${w-R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--${v===0?'muted':'line'})" stroke-width="1"/>`;
+    s+=`<text x="${L-8}" y="${y(v)+4}" text-anchor="end" font-size="12" fill="var(--muted)">${brl0(v)}</text>`;
+  }
+  for(let d=1;d<=n;d++)if(d===1||d%5===0)s+=`<text x="${x(d)+band/2}" y="${h-8}" text-anchor="middle" font-size="12" fill="var(--muted)">${d}</text>`;
+  ds.forEach(d=>{
+    const up=d.lucro>=0,y0=y(0),y1=y(d.lucro),bh=Math.max(2,Math.abs(y1-y0)),r=Math.min(4,bw/2,bh);
+    const bx=x(d.dia)+(band-bw)/2,sel=d.data===S.date;
+    const path=up?`M${bx} ${y0}V${y0-bh+r}Q${bx} ${y0-bh} ${bx+r} ${y0-bh}H${bx+bw-r}Q${bx+bw} ${y0-bh} ${bx+bw} ${y0-bh+r}V${y0}Z`
+                 :`M${bx} ${y0}V${y0+bh-r}Q${bx} ${y0+bh} ${bx+r} ${y0+bh}H${bx+bw-r}Q${bx+bw} ${y0+bh} ${bx+bw} ${y0+bh-r}V${y0}Z`;
+    s+=`<path d="${path}" fill="var(--${up?'pos':'neg'})" opacity="${sel||ds.length===1?1:.55}"/>`;
+    if(sel){
+      const tx=Math.min(w-R,Math.max(L+24,x(d.dia)+band/2));
+      s+=`<text x="${tx}" y="${up?Math.max(13,y0-bh-6):Math.min(h-B-4,y0+bh+15)}" text-anchor="${tx>=w-R-30?'end':'middle'}" font-size="12" font-weight="600" fill="var(--fg)">${brl(d.lucro)}</text>`;
+    }
+    s+=`<rect data-chart-dia="${d.data}" x="${x(d.dia)}" y="${T}" width="${band}" height="${h-T-B}" fill="transparent" style="cursor:pointer"/>`;
+  });
+  s+='</svg><div class="tip" id="tip" hidden></div>';
+  box.innerHTML=s;box.dataset.w=box.clientWidth;
+  const tip=$('#tip');
+  box.querySelectorAll('[data-chart-dia]').forEach(r=>{
+    r.addEventListener('mouseenter',()=>{
+      const d=ds.find(z=>z.data===r.dataset.chartDia);
+      tip.innerHTML=`${fmtDia(d.data)}: <b>${brl(d.lucro)}</b><br>Planilha ${brl(d.receita)}`;
+      tip.hidden=false;
+      const cx=+r.getAttribute('x')+band/2;
+      tip.style.left=Math.max(0,Math.min(box.clientWidth-tip.offsetWidth,cx-tip.offsetWidth/2))+'px';tip.style.top='0px';
+    });
+    r.addEventListener('mouseleave',()=>tip.hidden=true);
+    r.addEventListener('click',()=>{S.date=r.dataset.chartDia;render()});
+  });
+}
+new ResizeObserver(()=>{const b=$('#chart');if(b&&+b.dataset.w!==b.clientWidth)drawChart()}).observe(document.body);
+
+/* ---------- eventos ---------- */
+function marcaSujo(){S.dirty=true;const s=$('#salvo');if(s)s.textContent='Alterações ainda não salvas.';resumoCustos()}
+function ir(v){
+  S.view=v;S.err=null;S.confirm=null;
+  try{location.hash=v}catch(e){}
+  render();window.scrollTo(0,0);
+}
+document.addEventListener('click',async e=>{
+  const g=e.target.closest('[data-go]');if(g){ir(g.dataset.go);return}
+  const b=e.target.closest('[data-act]');if(!b)return;
+  const a=b.dataset.act,to=b.dataset.to,d=S.draft;
+  if(a==='sair'){await sb.auth.signOut({scope:'local'});S.view='painel';try{location.hash='painel'}catch(e){}return}
+  if(a==='dia'&&to){S.date=to;render()}
+  if(a==='clientes'){S.clientesPor=to;render()}
+  if(a==='cancelaPrev'){S.prev=null;render()}
+  if(a==='salvaPrev')salvaPrev();
+  if(a==='abre'){S.date=to;ir('painel')}
+  if(a==='confirma'){S.confirm=to;render()}
+  if(a==='apaga'){
+    try{await apaga('dias',to);S.confirm=null;if(S.date===to)S.date=null;toast(`Dia ${fmtDia(to)} excluído.`);render()}
+    catch(err){S.err=errMsg(err);toast(S.err)}
+  }
+  if(a==='addFixo'){d.fixos.push({id:uid(),nome:'',valor:0});S.dirty=true;render();$(`#fx-n-${d.fixos.at(-1).id}`)?.focus()}
+  if(a==='rmFixo'){d.fixos=d.fixos.filter(f=>f.id!==b.dataset.id);S.dirty=true;render()}
+  if(a==='addFunc'){d.funcionarias.push({id:uid(),nome:'',salario:0,pct:0,base:'todos',clientes:[]});S.dirty=true;render();$(`#p-n-${d.funcionarias.at(-1).id}`)?.focus()}
+  if(a==='rmFunc'){d.funcionarias=d.funcionarias.filter(f=>f.id!==b.dataset.id);S.dirty=true;render()}
+  if(a==='salvaCustos')salvaCustos();
+});
+document.addEventListener('submit',async e=>{
+  e.preventDefault();
+  if(e.target.id==='form-login'){
+    const err=$('#login-erro'),btn=$('#login-btn');err.hidden=true;btn.disabled=true;btn.textContent='Entrando…';
+    const{error}=await sb.auth.signInWithPassword({email:$('#login-email').value.trim(),password:$('#login-senha').value});
+    if(error){
+      err.textContent=error.status===400?'E-mail ou senha incorretos.':error.status===429?'Muitas tentativas. Aguarde alguns minutos e tente de novo.':'Não consegui entrar. Verifique a conexão e tente de novo.';
+      err.hidden=false;btn.disabled=false;btn.textContent='Entrar';
+    }
+  }
+  if(e.target.id==='form-senha'){
+    const a=$('#nova-senha').value,b=$('#nova-senha2').value,m=$('#senha-msg');
+    const mostra=(t,k)=>{m.textContent=t;m.className='note '+k;m.hidden=false};
+    if(a!==b){mostra('As duas senhas não são iguais.','bad');return}
+    const{error}=await sb.auth.updateUser({password:a});
+    if(error)mostra(error.code==='same_password'?'A nova senha precisa ser diferente da atual.':error.code==='weak_password'?'Essa senha é fraca. Escolha uma mais longa.':'Não consegui trocar a senha. Tente de novo.','bad');
+    else{e.target.reset();mostra('Senha trocada.','ok')}
+  }
+});
+document.addEventListener('input',e=>{
+  const t=e.target,d=S.draft;
+  if(t.dataset.fx){const f=d.fixos.find(x=>x.id===t.dataset.fx);f[t.dataset.k]=t.dataset.k==='valor'?(parseMoney(t.value)||0):t.value;marcaSujo()}
+  else if(t.dataset.p&&t.tagName==='INPUT'){const f=d.funcionarias.find(x=>x.id===t.dataset.p);f[t.dataset.k]=t.dataset.k==='nome'?t.value:(parseMoney(t.value)||0);marcaSujo()}
+  else if(t.id==='dias-func'){d.dias=parseInt(t.value,10)||0;marcaSujo()}
+});
+document.addEventListener('change',e=>{
+  const t=e.target,d=S.draft;
+  if(t.id==='arquivo'){handleFile(t.files[0]);return}
+  if(t.id==='sel-dia'){S.date=t.value;render();return}
+  if(t.id==='custos-mes'){
+    if(S.dirty)toast('As alterações não salvas foram descartadas.');
+    S.draftMes=t.value;S.draft=null;S.dirty=false;S.err=null;render();return;
+  }
+  if(t.dataset.p&&t.dataset.k==='base'){d.funcionarias.find(x=>x.id===t.dataset.p).base=t.value;S.dirty=true;render();return}
+  if(t.dataset.cli){
+    const f=d.funcionarias.find(x=>x.id===t.dataset.cli);const set=new Set(f.clientes||[]);
+    if(t.checked)set.add(t.value);else [...set].forEach(c=>{if(norm(c)===norm(t.value))set.delete(c)});
+    f.clientes=[...set];marcaSujo();
+  }
+});
+async function salvaCustos(){
+  const d=S.draft;S.err=null;
+  if(!(d.dias>=1&&d.dias<=31)){S.err='Os dias de funcionamento precisam estar entre 1 e 31.';render();return}
+  const fixos=d.fixos.filter(f=>f.nome.trim()||f.valor);
+  const func=d.funcionarias.filter(f=>f.nome.trim()||f.salario||f.pct);
+  if(fixos.some(f=>!f.nome.trim())){S.err='Dê um nome a todos os gastos com valor.';render();return}
+  if(func.some(f=>!f.nome.trim())){S.err='Informe o nome de todas as funcionárias.';render();return}
+  if(func.some(f=>f.pct<0||f.pct>100)){S.err='A comissão precisa estar entre 0% e 100%.';render();return}
+  const doc={mes:d.mes,dias:d.dias,fixos,funcionarias:func,atualizadoEm:new Date().toISOString()};
+  try{await grava('custos',d.mes,doc);S.dirty=false;S.draftMes=d.mes;S.draft=null;toast(`Valores de ${fmtMes(d.mes)} salvos.`);render()}
+  catch(e){S.err=errMsg(e);render()}
+}
+['dragover','dragleave','drop'].forEach(tp=>document.addEventListener(tp,e=>{
+  const z=$('#drop');if(!z)return;
+  if(tp!=='dragleave')e.preventDefault();
+  z.classList.toggle('over',tp==='dragover');
+  if(tp==='drop'&&e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);
+}));
+function rota(){const h=location.hash.slice(1);if(['painel','custos','historico','conta'].includes(h)&&h!==S.view){S.view=h;render()}}
+addEventListener('hashchange',rota);
+rota();render();inicia();
+</script>
+</body>
+</html>
