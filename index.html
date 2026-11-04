@@ -185,8 +185,9 @@ function cpfValido(c){
 }
 const BANDEIRAS={visa:'Visa',master:'Master',elo:'Elo/Banese/demais'},MAQUINAS={pagbank:'PagBank',cielo:'Cielo'};
 const VIEWS={gerente:['calculadora','vendas','planilhas','conta'],dono:['calculadora','vendas','painel','taxas','custos','historico','conta']};
-const calcInicial=()=>({maquina:'pagbank',bandeira:'visa',parcelas:1,modo:'cartao',valor:'',nome:'',cpf:'',telefone:'',data:hojeISO()});
-const vfInicial=()=>({de:mesAtual()+'-01',ate:hojeISO(),maquina:'',bandeira:''});
+const VENDEDORAS={'Escritório':['Ketley','Elen'],'Vendedoras':['Panfletista 1','Panfletista 2','Panfletista 3']};
+const calcInicial=()=>({maquina:'pagbank',bandeira:'visa',parcelas:1,modo:'cartao',valor:'',nome:'',cpf:'',telefone:'',data:hojeISO(),vendedora:''});
+const vfInicial=()=>({de:mesAtual()+'-01',ate:hojeISO(),maquina:'',bandeira:'',vendedora:''});
 
 /* ---------- leitura da planilha ---------- */
 function parseMoney(v){
@@ -638,6 +639,7 @@ function calcHTML(){
   </section>
   <section class="panel form"><div class="head" style="margin:0"><h2>Registrar venda</h2></div>
     <div class="cli-form">
+      <div class="f"><label for="c-ven">Quem vendeu</label><select id="c-ven" data-calc="vendedora"><option value="">Selecione</option>${Object.entries(VENDEDORAS).map(([g,ns])=>`<optgroup label="${g}">${ns.map(n=>`<option value="${n}" ${n===k.vendedora?'selected':''}>${n}</option>`).join('')}</optgroup>`).join('')}</select></div>
       <div class="f"><label for="c-nome">Nome do cliente</label><input id="c-nome" data-calc="nome" autocomplete="off" value="${esc(k.nome)}"></div>
       <div class="f"><label for="c-cpf">CPF</label><input id="c-cpf" data-calc="cpf" inputmode="numeric" autocomplete="off" placeholder="000.000.000-00" value="${esc(k.cpf)}"></div>
       <div class="f"><label for="c-tel">Telefone com DDD</label><input id="c-tel" data-calc="telefone" inputmode="tel" autocomplete="off" placeholder="(79) 99999-9999" value="${esc(k.telefone)}"></div>
@@ -649,23 +651,23 @@ function calcHTML(){
 }
 async function registraVenda(btn){
   const k=S.calc,r=calcAtual(),cpf=soDigitos(k.cpf),tel=soDigitos(k.telefone);
-  const erro=r.cartao==null?'Informe o valor da venda.':!k.nome.trim()?'Informe o nome do cliente.':!cpfValido(cpf)?'CPF inválido. Confira os números.':![10,11].includes(tel.length)?'Telefone inválido. Informe o DDD e o número.':!k.data||k.data>hojeISO()?'Informe uma data de venda válida.':null;
+  const erro=r.cartao==null?'Informe o valor da venda.':!k.vendedora?'Selecione quem vendeu.':!k.nome.trim()?'Informe o nome do cliente.':!cpfValido(cpf)?'CPF inválido. Confira os números.':![10,11].includes(tel.length)?'Telefone inválido. Informe o DDD e o número.':!k.data||k.data>hojeISO()?'Informe uma data de venda válida.':null;
   S.err=erro;if(erro){render();return}
   btn.disabled=true;
-  const{data,error}=await sb.rpc('registrar_venda',{p_data:k.data,p_maquina:k.maquina,p_bandeira:k.bandeira,p_parcelas:+k.parcelas,p_valor_cartao:r.cartao,p_nome:k.nome.trim(),p_cpf:cpf,p_telefone:tel});
+  const{data,error}=await sb.rpc('registrar_venda',{p_data:k.data,p_maquina:k.maquina,p_bandeira:k.bandeira,p_parcelas:+k.parcelas,p_valor_cartao:r.cartao,p_nome:k.nome.trim(),p_cpf:cpf,p_telefone:tel,p_vendedora:k.vendedora});
   if(error){S.err=error.code==='P0001'||error.code==='42501'?error.message:'Não foi possível registrar. Verifique a conexão e tente de novo.';render();return}
-  Object.assign(S.calc,{valor:'',nome:'',cpf:'',telefone:''});
+  Object.assign(S.calc,{valor:'',nome:'',cpf:'',telefone:'',vendedora:''});
   try{await carregaVendas()}catch(e){}
   toast(`Venda registrada: ${brl(data.valor_pix)} no Pix.`);render();
 }
-function vendasFiltradas(){const f=S.vF;return S.vendas.filter(v=>(!f.maquina||v.maquina===f.maquina)&&(!f.bandeira||v.bandeira===f.bandeira))}
+function vendasFiltradas(){const f=S.vF;return S.vendas.filter(v=>(!f.maquina||v.maquina===f.maquina)&&(!f.bandeira||v.bandeira===f.bandeira)&&(!f.vendedora||v.vendedora===f.vendedora))}
 function vendasHTML(){
   const f=S.vF,dono=S.papel==='dono',lista=vendasFiltradas(),ativas=lista.filter(v=>!v.cancelada_em);
   const soma=g=>cents(ativas.reduce((a,v)=>a+(+g(v)||0),0));
   const op=(o,v)=>`<option value="">Todas</option>`+Object.entries(o).map(([a,b])=>`<option value="${a}" ${a===v?'selected':''}>${b}</option>`).join('');
   const linhas=lista.map(v=>{
-    const c=umDe(v.vendas_custo),cf=umDe(v.vendas_cpf),cancelada=!!v.cancelada_em,cols=dono?12:10;
-    const lin=`<tr class="${cancelada?'cancelada':''}"><td>${fmtDia(v.data)}</td><td class="left">${esc(v.cliente_nome)}<br><span class="muted small">${esc(fmtTel(v.cliente_telefone))}</span></td><td class="left">${esc(dono&&cf?fmtCpf(cf.cpf):v.cpf_mascarado)}</td><td class="left">${MAQUINAS[v.maquina]||''}</td><td class="left">${BANDEIRAS[v.bandeira]||''}</td><td>${v.parcelas}x</td><td>${brl(v.valor_cartao)}</td><td>${fmtPct(v.taxa_pct)}</td><td>${brl(v.valor_pix)}</td>${dono?`<td>${c?brl(c.custo_valor):''}</td><td><b>${c?brl(c.lucro):''}</b></td>`:''}<td class="nota">${cancelada?'':dono?`<button class="btn small" data-act="abreCancel" data-to="${v.id}">Cancelar</button>`:`<span class="muted small">${esc(v.registrado_email||'')}</span>`}</td></tr>`;
+    const c=umDe(v.vendas_custo),cf=umDe(v.vendas_cpf),cancelada=!!v.cancelada_em,cols=dono?13:11;
+    const lin=`<tr class="${cancelada?'cancelada':''}"><td>${fmtDia(v.data)}</td><td class="left">${esc(v.cliente_nome)}<br><span class="muted small">${esc(fmtTel(v.cliente_telefone))}</span></td><td class="left">${esc(dono&&cf?fmtCpf(cf.cpf):v.cpf_mascarado)}</td><td class="left">${MAQUINAS[v.maquina]||''}</td><td class="left">${BANDEIRAS[v.bandeira]||''}</td><td class="left">${esc(v.vendedora||'Não informada')}</td><td>${v.parcelas}x</td><td>${brl(v.valor_cartao)}</td><td>${fmtPct(v.taxa_pct)}</td><td>${brl(v.valor_pix)}</td>${dono?`<td>${c?brl(c.custo_valor):''}</td><td><b>${c?brl(c.lucro):''}</b></td>`:''}<td class="nota">${cancelada?'':dono?`<button class="btn small" data-act="abreCancel" data-to="${v.id}">Cancelar</button>`:`<span class="muted small">${esc(v.registrado_email||'')}</span>`}</td></tr>`;
     const nota=cancelada?`<tr><td class="nota muted small" colspan="${cols}" style="text-align:left;white-space:normal">Cancelada${v.cancelada_por?' por '+esc(v.cancelada_por):''}: ${esc(v.motivo_cancelamento||'')}</td></tr>`:'';
     const canc=S.cancelando===v.id?`<tr><td colspan="${cols}" style="text-align:left;white-space:normal"><div class="filtros"><div class="f" style="max-width:none;flex:1 1 220px"><label for="motivo">Motivo do cancelamento</label><input id="motivo"></div><button class="btn small danger" data-act="confirmaCancel" data-to="${v.id}">Confirmar cancelamento</button><button class="btn small" data-act="fechaCancel">Voltar</button></div></td></tr>`:'';
     return lin+nota+canc;
@@ -677,6 +679,7 @@ function vendasHTML(){
       <button class="btn" type="submit">Filtrar datas</button>
       <div class="f"><label for="v-maq">Máquina</label><select id="v-maq" data-vf="maquina">${op(MAQUINAS,f.maquina)}</select></div>
       <div class="f"><label for="v-ban">Bandeira</label><select id="v-ban" data-vf="bandeira">${op(BANDEIRAS,f.bandeira)}</select></div>
+      <div class="f"><label for="v-ven">Quem vendeu</label><select id="v-ven" data-vf="vendedora">${op(Object.fromEntries(Object.values(VENDEDORAS).flat().map(n=>[n,n])),f.vendedora)}</select></div>
     </form></section>
   <section class="panel"><div class="resumo">
       <div><span class="muted small">Vendas</span><b>${ativas.length}</b></div>
@@ -684,7 +687,7 @@ function vendasHTML(){
       <div><span class="muted small">Pix enviado</span><b>${brl(soma(v=>v.valor_pix))}</b></div>
       ${dono?`<div><span class="muted small">Lucro</span><b>${brl(soma(v=>umDe(v.vendas_custo)?.lucro))}</b></div>`:''}
     </div></section>
-  <section class="panel"><div class="scroll">${lista.length?`<table><thead><tr><th>Data</th><th class="left">Cliente</th><th class="left">CPF</th><th class="left">Máquina</th><th class="left">Bandeira</th><th>Parcelas</th><th>Cartão</th><th>Taxa</th><th>Pix</th>${dono?'<th>Custo</th><th>Lucro</th>':''}<th></th></tr></thead><tbody>${linhas}</tbody></table>`:'<p class="muted" style="margin:0">Nenhuma venda nesse filtro.</p>'}</div></section>
+  <section class="panel"><div class="scroll">${lista.length?`<table><thead><tr><th>Data</th><th class="left">Cliente</th><th class="left">CPF</th><th class="left">Máquina</th><th class="left">Bandeira</th><th class="left">Vendeu</th><th>Parcelas</th><th>Cartão</th><th>Taxa</th><th>Pix</th>${dono?'<th>Custo</th><th>Lucro</th>':''}<th></th></tr></thead><tbody>${linhas}</tbody></table>`:'<p class="muted" style="margin:0">Nenhuma venda nesse filtro.</p>'}</div></section>
   ${dono?comparaHTML():''}`;
 }
 function comparaHTML(){
@@ -698,7 +701,7 @@ function comparaHTML(){
     <div class="scroll">${rows?`<table><thead><tr><th>Data</th><th>Lucro das vendas</th><th>Linhas ESCRITÓRIO</th><th>Diferença</th></tr></thead><tbody>${rows}</tbody></table>`:'<p class="muted" style="margin:0">Nada para comparar nessas datas.</p>'}</div></section>`;
 }
 function exportaVendas(){
-  const rows=vendasFiltradas().map(v=>{const c=umDe(v.vendas_custo),cf=umDe(v.vendas_cpf);return{Data:fmtDia(v.data),Cliente:v.cliente_nome,CPF:cf?fmtCpf(cf.cpf):v.cpf_mascarado,Telefone:fmtTel(v.cliente_telefone),'Máquina':MAQUINAS[v.maquina],Bandeira:BANDEIRAS[v.bandeira],Parcelas:v.parcelas,'Valor no cartão':+v.valor_cartao,'Taxa %':+v.taxa_pct,'Valor da taxa':+v.valor_taxa,Pix:+v.valor_pix,'Custo %':c?+c.custo_pct:null,'Custo':c?+c.custo_valor:null,Lucro:c?+c.lucro:null,'Registrada por':v.registrado_email||'',Cancelada:v.cancelada_em?'Sim':'','Motivo do cancelamento':v.motivo_cancelamento||''}});
+  const rows=vendasFiltradas().map(v=>{const c=umDe(v.vendas_custo),cf=umDe(v.vendas_cpf);return{Data:fmtDia(v.data),Cliente:v.cliente_nome,CPF:cf?fmtCpf(cf.cpf):v.cpf_mascarado,Telefone:fmtTel(v.cliente_telefone),'Máquina':MAQUINAS[v.maquina],Bandeira:BANDEIRAS[v.bandeira],'Quem vendeu':v.vendedora||'Não informada',Parcelas:v.parcelas,'Valor no cartão':+v.valor_cartao,'Taxa %':+v.taxa_pct,'Valor da taxa':+v.valor_taxa,Pix:+v.valor_pix,'Custo %':c?+c.custo_pct:null,'Custo':c?+c.custo_valor:null,Lucro:c?+c.lucro:null,'Registrada por':v.registrado_email||'',Cancelada:v.cancelada_em?'Sim':'','Motivo do cancelamento':v.motivo_cancelamento||''}});
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'Vendas');
   XLSX.writeFile(wb,`Vendas ${S.vF.de} a ${S.vF.ate}.xlsx`);
 }
