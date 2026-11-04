@@ -41,7 +41,7 @@ header.top{display:flex;flex-wrap:wrap;align-items:center;gap:12px 20px;justify-
 .login-logo{display:block;width:120px;height:120px;border-radius:50%;margin:0 auto 4px}
 h1{font:700 26px/1.1 var(--display);margin:0;letter-spacing:-.01em}
 h2{font:700 18px/1.2 var(--display);margin:0;text-wrap:balance}
-nav{display:flex;gap:4px;background:var(--sunken);padding:4px;border-radius:8px}
+nav{display:flex;flex-wrap:wrap;gap:4px;background:var(--sunken);padding:4px;border-radius:8px}
 nav button{border:0;background:transparent;color:var(--muted);font:500 14px var(--body);padding:7px 12px;border-radius:5px;cursor:pointer}
 nav button[aria-current="true"]{background:var(--surface);color:var(--fg)}
 h2.cap::first-letter{text-transform:uppercase}
@@ -114,6 +114,17 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
 .savebar{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;justify-content:space-between}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:9px 15px;border-radius:6px;font-size:14px;z-index:5;max-width:90vw}
 .stack{display:grid;gap:20px}
+.calc-sel{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.calc-pix{font:700 clamp(32px,6vw,46px)/1.1 var(--display);margin:4px 0 12px;overflow-wrap:anywhere}
+.cli-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}
+.filtros{display:flex;flex-wrap:wrap;gap:10px;align-items:end}
+.filtros .f{flex:1 1 130px;max-width:190px}
+.resumo{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
+.resumo b{display:block;font:700 20px/1.25 var(--display);overflow-wrap:anywhere}
+tr.cancelada td{color:var(--muted);text-decoration:line-through}
+tr.cancelada td.nota{text-decoration:none}
+.taxas-t input{width:76px;padding:4px 6px;border:1px solid var(--line);border-radius:4px;background:var(--bg);text-align:right}
+.taxas-t td{padding:4px 8px}
 @media (max-width:760px){
   .day,.grid2{grid-template-columns:minmax(0,1fr)}
   .person .cols{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
@@ -129,6 +140,9 @@ details summary{cursor:pointer;color:var(--muted);font-size:13px}
     <nav aria-label="Seções" id="nav" hidden>
       <button data-go="planilhas" data-papel="gerente">Planilhas</button>
       <button data-go="painel" data-papel="dono">Painel</button>
+      <button data-go="calculadora">Calculadora</button>
+      <button data-go="vendas">Vendas</button>
+      <button data-go="taxas" data-papel="dono">Taxas</button>
       <button data-go="custos" data-papel="dono">Custos e equipe</button>
       <button data-go="historico" data-papel="dono">Histórico</button>
       <button data-go="conta">Conta</button>
@@ -158,6 +172,21 @@ const fmtDia=iso=>iso.split('-').reverse().join('/');
 const fmtDiaLongo=iso=>toD(iso).toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'2-digit',year:'numeric'});
 const fmtMes=m=>{const[y,mo]=m.split('-').map(Number);return new Date(y,mo-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'})};
 const mesAtual=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)};
+
+const hojeISO=()=>{const d=new Date();return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())};
+const fmtPct=n=>(+n||0).toLocaleString('pt-BR',{maximumFractionDigits:3})+'%';
+const soDigitos=s=>String(s??'').replace(/\D/g,'');
+const fmtCpf=c=>c.replace(/^(\d{3})(\d{3})(\d{3})(\d{2})$/,'$1.$2.$3-$4');
+const fmtTel=t=>t.replace(/^(\d{2})(\d{4,5})(\d{4})$/,'($1) $2-$3');
+function cpfValido(c){
+  if(!/^\d{11}$/.test(c)||/^(\d)\1{10}$/.test(c))return false;
+  for(const n of[9,10]){let t=0;for(let i=0;i<n;i++)t+=+c[i]*(n+1-i);let d=t*10%11;if(d===10)d=0;if(d!==+c[n])return false}
+  return true;
+}
+const BANDEIRAS={visa:'Visa',master:'Master',elo:'Elo/Banese/demais'},MAQUINAS={pagbank:'PagBank',cielo:'Cielo'};
+const VIEWS={gerente:['planilhas','calculadora','vendas','conta'],dono:['painel','calculadora','vendas','taxas','custos','historico','conta']};
+const calcInicial=()=>({maquina:'pagbank',bandeira:'visa',parcelas:1,modo:'cartao',valor:'',nome:'',cpf:'',telefone:'',data:hojeISO()});
+const vfInicial=()=>({de:mesAtual()+'-01',ate:hojeISO(),maquina:'',bandeira:''});
 
 /* ---------- leitura da planilha ---------- */
 function parseMoney(v){
@@ -286,7 +315,7 @@ function fmtFaixa(de,ate){
 const comPlanilha=(n,tot)=>`${n} de ${tot} ${tot===1?'dia':'dias'} com planilha`;
 
 /* ---------- estado e persistência ---------- */
-const S={dias:{},custos:{},view:'painel',date:null,periodo:'dia',de:null,ate:null,prev:null,err:null,loaded:{dias:false,custos:false},draft:null,dirty:false,confirm:null,toastT:0,sessao:null,acesso:null,papel:null,authPronto:false,ultimaCarga:0};
+const S={dias:{},custos:{},view:'painel',date:null,periodo:'dia',de:null,ate:null,prev:null,err:null,loaded:{dias:false,custos:false},draft:null,dirty:false,confirm:null,toastT:0,sessao:null,acesso:null,papel:null,cobranca:{},custoTaxas:{},adicionais:{},vendas:[],calc:calcInicial(),vF:vfInicial(),taxasDraft:null,cancelando:null,authPronto:false,ultimaCarga:0};
 /* Chave pública do Supabase: quem protege os dados são o login e as regras de acesso do banco. */
 const SB_URL='https://comlcgiiyoaurejcddsj.supabase.co',SB_KEY='sb_publishable_lEsm-yhizYahUBABB2YPJA_YW_QfrSQ';
 const sb=window.supabase?window.supabase.createClient(SB_URL,SB_KEY):null;
@@ -313,12 +342,32 @@ async function carrega(){
   S.dias=Object.fromEntries(d.data.map(r=>[r.data,rowDia(r)]));
   S.custos=Object.fromEntries(c.data.map(r=>[r.mes,rowCusto(r)]));
   S.loaded={dias:true,custos:true};S.ultimaCarga=Date.now();banner('');
+  try{await carregaTaxas();await carregaVendas()}catch(e){banner('Não consegui buscar as vendas e as taxas. Verifique a conexão e recarregue a página.','bad')}
   if(S.view==='custos'&&!S.dirty)S.draft=null;
 }
+async function carregaTaxas(){
+  const c=await sb.from('taxas_cobranca').select('*');if(c.error)throw c.error;
+  S.cobranca=Object.fromEntries(c.data.map(r=>[r.bandeira+'|'+r.parcelas,+r.pct]));
+  if(S.papel!=='dono')return;
+  const[t,m]=await Promise.all([sb.from('taxas_custo').select('*'),sb.from('maquinas').select('*')]);
+  if(t.error||m.error)throw t.error||m.error;
+  S.custoTaxas=Object.fromEntries(t.data.map(r=>[r.maquina+'|'+r.bandeira+'|'+r.parcelas,+r.pct]));
+  S.adicionais=Object.fromEntries(m.data.map(r=>[r.id,+r.adicional]));
+}
+async function carregaVendas(){
+  const{de,ate}=S.vF,sel=S.papel==='dono'?'*,vendas_custo(*),vendas_cpf(cpf)':'*',todas=[];
+  for(let i=0;;i+=1000){
+    const{data,error}=await sb.from('vendas').select(sel).gte('data',de).lte('data',ate).order('data',{ascending:false}).order('criado_em',{ascending:false}).range(i,i+999);
+    if(error)throw error;
+    todas.push(...data);if(data.length<1000)break;
+  }
+  S.vendas=todas;
+}
+const umDe=x=>Array.isArray(x)?x[0]:x;
 async function aplicaSessao(s){
   const antes=S.sessao?.user?.id;S.sessao=s;S.authPronto=true;
   if(!s){
-    Object.assign(S,{dias:{},custos:{},acesso:null,papel:null,date:null,periodo:'dia',de:null,ate:null,prev:null,err:null,draft:null,dirty:false,draftMes:null,loaded:{dias:false,custos:false}});
+    Object.assign(S,{cobranca:{},custoTaxas:{},adicionais:{},vendas:[],calc:calcInicial(),vF:vfInicial(),taxasDraft:null,cancelando:null,dias:{},custos:{},acesso:null,papel:null,date:null,periodo:'dia',de:null,ate:null,prev:null,err:null,draft:null,dirty:false,draftMes:null,loaded:{dias:false,custos:false}});
     render();return;
   }
   if(antes===s.user.id&&S.acesso)return; /* só renovou o token */
@@ -343,7 +392,7 @@ function inicia(){
 addEventListener('focus',async()=>{
   if(S.acesso!=='ok'||Date.now()-S.ultimaCarga<30000)return;
   await carrega();
-  if(S.view==='painel'||S.view==='planilhas'||S.view==='historico'||(S.view==='custos'&&!S.dirty))render();
+  if(S.view==='painel'||S.view==='planilhas'||S.view==='historico'||(S.view==='vendas'&&!S.cancelando)||(S.view==='custos'&&!S.dirty))render();
 });
 
 /* ---------- importação ---------- */
@@ -548,6 +597,133 @@ function planilhasHTML(){
     <div class="scroll"><table><thead><tr><th>Data</th><th>Ganho</th><th class="left">Arquivo</th><th>Enviada em</th></tr></thead><tbody>${rows}</tbody></table></div>
     <p class="muted small" style="margin:12px 0 0">Para corrigir um dia, envie a planilha dele de novo. Para excluir, fale com quem administra a dash.</p></section>`:''}`;
 }
+function contaVenda(valor,pct,custoPct){
+  const c=Math.round(valor*100),taxa=Math.round(c*Math.round(pct*1000)/100000);
+  const custo=custoPct==null?null:Math.round(c*Math.round(custoPct*1000)/100000);
+  return{cartao:c/100,taxa:taxa/100,pix:(c-taxa)/100,custo:custo==null?null:custo/100,lucro:custo==null?null:(taxa-custo)/100};
+}
+function calcAtual(){
+  const k=S.calc,pct=S.cobranca[k.bandeira+'|'+k.parcelas],base=parseMoney(k.valor)||0;
+  if(pct==null||base<=0)return{pct};
+  const cartao=k.modo==='pix'?cents(base/(1-pct/100)):base;
+  const bc=S.custoTaxas[k.maquina+'|'+k.bandeira+'|'+k.parcelas];
+  const custoPct=S.papel==='dono'&&bc!=null?bc+(S.adicionais[k.maquina]||0):null;
+  return{pct,custoPct,...contaVenda(cartao,pct,custoPct)};
+}
+function calcResultadoHTML(){
+  const r=calcAtual(),k=S.calc;
+  if(r.pct==null)return'<p class="muted" style="margin:0">Não há taxa cadastrada para essa combinação.</p>';
+  if(r.cartao==null)return`<p class="muted" style="margin:0">Taxa cobrada: <b>${fmtPct(r.pct)}</b>. Digite o valor para ver a conta.</p>`;
+  return `<div class="eyebrow">Cliente recebe no Pix</div><div class="calc-pix">${brl(r.pix)}</div>
+  <div class="ledger">
+    <div><span>Valor no cartão</span><span>${brl(r.cartao)}</span></div>
+    <div><span>Taxa cobrada <span class="muted small">(${fmtPct(r.pct)})</span></span><span>${brl(r.taxa)}</span></div>
+    <div><span>Parcela estimada <span class="muted small">(${k.parcelas}x)</span></span><span>${brl(r.cartao/k.parcelas)}</span></div>
+    ${r.custo==null?'':`<div><span>Custo da maquineta <span class="muted small">(${fmtPct(r.custoPct)})</span></span><span>${brl(r.custo)}</span></div>`}
+    ${r.lucro==null?`<div><span>= Cliente recebe</span><span>${brl(r.pix)}</span></div>`:`<div><span>= Lucro da Invest</span><span>${brl(r.lucro)}</span></div>`}
+  </div>`;
+}
+function calcHTML(){
+  const k=S.calc,op=(o,v)=>Object.entries(o).map(([a,b])=>`<option value="${a}" ${a===v?'selected':''}>${b}</option>`).join('');
+  const parc=Array.from({length:18},(_,i)=>i+1).map(n=>`<option value="${n}" ${n===+k.parcelas?'selected':''}>${n}x</option>`).join('');
+  return `<section class="panel form"><div class="head" style="margin:0"><h2>Calculadora</h2></div>
+    <div class="calc-sel">
+      <div class="f"><label for="c-maq">Máquina</label><select id="c-maq" data-calc="maquina">${op(MAQUINAS,k.maquina)}</select></div>
+      <div class="f"><label for="c-ban">Bandeira</label><select id="c-ban" data-calc="bandeira">${op(BANDEIRAS,k.bandeira)}</select></div>
+      <div class="f"><label for="c-par">Parcelas</label><select id="c-par" data-calc="parcelas">${parc}</select></div>
+      <div class="f"><label for="c-mod">Calcular a partir de</label><select id="c-mod" data-calc="modo">${op({cartao:'Valor no cartão',pix:'Valor no Pix'},k.modo)}</select></div>
+      <div class="f"><label for="c-val" id="c-val-l">${k.modo==='pix'?'Valor que o cliente quer receber':'Valor passado no cartão'}</label><input id="c-val" data-calc="valor" inputmode="decimal" placeholder="0,00" autocomplete="off" value="${esc(k.valor)}"></div>
+    </div>
+    <div id="calc-res" aria-live="polite" style="margin-top:6px">${calcResultadoHTML()}</div>
+  </section>
+  <section class="panel form"><div class="head" style="margin:0"><h2>Registrar venda</h2></div>
+    <div class="cli-form">
+      <div class="f"><label for="c-nome">Nome do cliente</label><input id="c-nome" data-calc="nome" autocomplete="off" value="${esc(k.nome)}"></div>
+      <div class="f"><label for="c-cpf">CPF</label><input id="c-cpf" data-calc="cpf" inputmode="numeric" autocomplete="off" placeholder="000.000.000-00" value="${esc(k.cpf)}"></div>
+      <div class="f"><label for="c-tel">Telefone com DDD</label><input id="c-tel" data-calc="telefone" inputmode="tel" autocomplete="off" placeholder="(79) 99999-9999" value="${esc(k.telefone)}"></div>
+      <div class="f"><label for="c-data">Data da venda</label><input id="c-data" type="date" data-calc="data" max="${hojeISO()}" value="${esc(k.data)}"></div>
+    </div>
+    ${S.err?`<div class="note bad">${esc(S.err)}</div>`:''}
+    <div class="savebar"><span class="muted small">O sistema confere a taxa ao salvar. A venda registrada não muda se a tabela mudar depois.</span><button class="btn primary" data-act="registraVenda">Registrar venda</button></div>
+  </section>`;
+}
+async function registraVenda(btn){
+  const k=S.calc,r=calcAtual(),cpf=soDigitos(k.cpf),tel=soDigitos(k.telefone);
+  const erro=r.cartao==null?'Informe o valor da venda.':!k.nome.trim()?'Informe o nome do cliente.':!cpfValido(cpf)?'CPF inválido. Confira os números.':![10,11].includes(tel.length)?'Telefone inválido. Informe o DDD e o número.':!k.data||k.data>hojeISO()?'Informe uma data de venda válida.':null;
+  S.err=erro;if(erro){render();return}
+  btn.disabled=true;
+  const{data,error}=await sb.rpc('registrar_venda',{p_data:k.data,p_maquina:k.maquina,p_bandeira:k.bandeira,p_parcelas:+k.parcelas,p_valor_cartao:r.cartao,p_nome:k.nome.trim(),p_cpf:cpf,p_telefone:tel});
+  if(error){S.err=error.code==='P0001'||error.code==='42501'?error.message:'Não foi possível registrar. Verifique a conexão e tente de novo.';render();return}
+  Object.assign(S.calc,{valor:'',nome:'',cpf:'',telefone:''});
+  try{await carregaVendas()}catch(e){}
+  toast(`Venda registrada: ${brl(data.valor_pix)} no Pix.`);render();
+}
+function vendasFiltradas(){const f=S.vF;return S.vendas.filter(v=>(!f.maquina||v.maquina===f.maquina)&&(!f.bandeira||v.bandeira===f.bandeira))}
+function vendasHTML(){
+  const f=S.vF,dono=S.papel==='dono',lista=vendasFiltradas(),ativas=lista.filter(v=>!v.cancelada_em);
+  const soma=g=>cents(ativas.reduce((a,v)=>a+(+g(v)||0),0));
+  const op=(o,v)=>`<option value="">Todas</option>`+Object.entries(o).map(([a,b])=>`<option value="${a}" ${a===v?'selected':''}>${b}</option>`).join('');
+  const linhas=lista.map(v=>{
+    const c=umDe(v.vendas_custo),cf=umDe(v.vendas_cpf),cancelada=!!v.cancelada_em,cols=dono?12:10;
+    const lin=`<tr class="${cancelada?'cancelada':''}"><td>${fmtDia(v.data)}</td><td class="left">${esc(v.cliente_nome)}<br><span class="muted small">${esc(fmtTel(v.cliente_telefone))}</span></td><td class="left">${esc(dono&&cf?fmtCpf(cf.cpf):v.cpf_mascarado)}</td><td class="left">${MAQUINAS[v.maquina]||''}</td><td class="left">${BANDEIRAS[v.bandeira]||''}</td><td>${v.parcelas}x</td><td>${brl(v.valor_cartao)}</td><td>${fmtPct(v.taxa_pct)}</td><td>${brl(v.valor_pix)}</td>${dono?`<td>${c?brl(c.custo_valor):''}</td><td><b>${c?brl(c.lucro):''}</b></td>`:''}<td class="nota">${cancelada?'':dono?`<button class="btn small" data-act="abreCancel" data-to="${v.id}">Cancelar</button>`:`<span class="muted small">${esc(v.registrado_email||'')}</span>`}</td></tr>`;
+    const nota=cancelada?`<tr><td class="nota muted small" colspan="${cols}" style="text-align:left;white-space:normal">Cancelada${v.cancelada_por?' por '+esc(v.cancelada_por):''}: ${esc(v.motivo_cancelamento||'')}</td></tr>`:'';
+    const canc=S.cancelando===v.id?`<tr><td colspan="${cols}" style="text-align:left;white-space:normal"><div class="filtros"><div class="f" style="max-width:none;flex:1 1 220px"><label for="motivo">Motivo do cancelamento</label><input id="motivo"></div><button class="btn small danger" data-act="confirmaCancel" data-to="${v.id}">Confirmar cancelamento</button><button class="btn small" data-act="fechaCancel">Voltar</button></div></td></tr>`:'';
+    return lin+nota+canc;
+  }).join('');
+  return `<section class="panel"><div class="head"><h2>Vendas do escritório</h2>${dono?`<button class="btn small" data-act="exportaVendas" ${lista.length?'':'disabled'}>Exportar Excel</button>`:''}</div>
+    <form class="filtros" id="form-vendas">
+      <div class="f"><label for="v-de">De</label><input id="v-de" type="date" value="${f.de}" required></div>
+      <div class="f"><label for="v-ate">Até</label><input id="v-ate" type="date" value="${f.ate}" required></div>
+      <button class="btn" type="submit">Filtrar datas</button>
+      <div class="f"><label for="v-maq">Máquina</label><select id="v-maq" data-vf="maquina">${op(MAQUINAS,f.maquina)}</select></div>
+      <div class="f"><label for="v-ban">Bandeira</label><select id="v-ban" data-vf="bandeira">${op(BANDEIRAS,f.bandeira)}</select></div>
+    </form></section>
+  <section class="panel"><div class="resumo">
+      <div><span class="muted small">Vendas</span><b>${ativas.length}</b></div>
+      <div><span class="muted small">Valor no cartão</span><b>${brl(soma(v=>v.valor_cartao))}</b></div>
+      <div><span class="muted small">Pix enviado</span><b>${brl(soma(v=>v.valor_pix))}</b></div>
+      ${dono?`<div><span class="muted small">Lucro</span><b>${brl(soma(v=>umDe(v.vendas_custo)?.lucro))}</b></div>`:''}
+    </div></section>
+  <section class="panel"><div class="scroll">${lista.length?`<table><thead><tr><th>Data</th><th class="left">Cliente</th><th class="left">CPF</th><th class="left">Máquina</th><th class="left">Bandeira</th><th>Parcelas</th><th>Cartão</th><th>Taxa</th><th>Pix</th>${dono?'<th>Custo</th><th>Lucro</th>':''}<th></th></tr></thead><tbody>${linhas}</tbody></table>`:'<p class="muted" style="margin:0">Nenhuma venda nesse filtro.</p>'}</div></section>
+  ${dono?comparaHTML():''}`;
+}
+function comparaHTML(){
+  const{de,ate}=S.vF,mapa={};
+  S.vendas.filter(v=>!v.cancelada_em).forEach(v=>{const m=mapa[v.data]=mapa[v.data]||{vendas:0,planilha:null};m.vendas+=+(umDe(v.vendas_custo)?.lucro)||0});
+  diasEntre(de,ate).forEach(d=>{const t=d.linhas.filter(l=>/^ESCRIT[OÓ]RIO/.test(norm(l.cliente))).reduce((a,l)=>a+l.valor,0);const m=mapa[d.data]=mapa[d.data]||{vendas:0,planilha:null};m.planilha=t});
+  const rows=Object.keys(mapa).sort().reverse().map(k=>{const m=mapa[k],dif=m.planilha==null?null:cents(m.vendas-m.planilha);
+    return `<tr><td>${fmtDia(k)}</td><td>${brl(m.vendas)}</td><td>${m.planilha==null?'<span class="muted small">Sem planilha</span>':brl(m.planilha)}</td><td class="${dif?'neg':''}">${dif==null?'':brl(dif)}</td></tr>`}).join('');
+  return `<section class="panel"><div class="head"><h2>Vendas × planilha</h2></div>
+    <p class="muted small" style="margin:0 0 10px">Compara o lucro das vendas registradas com as linhas ESCRITÓRIO da planilha. Só para conferência: as vendas ainda não entram no lucro do Painel.</p>
+    <div class="scroll">${rows?`<table><thead><tr><th>Data</th><th>Lucro das vendas</th><th>Linhas ESCRITÓRIO</th><th>Diferença</th></tr></thead><tbody>${rows}</tbody></table>`:'<p class="muted" style="margin:0">Nada para comparar nessas datas.</p>'}</div></section>`;
+}
+function exportaVendas(){
+  const rows=vendasFiltradas().map(v=>{const c=umDe(v.vendas_custo),cf=umDe(v.vendas_cpf);return{Data:fmtDia(v.data),Cliente:v.cliente_nome,CPF:cf?fmtCpf(cf.cpf):v.cpf_mascarado,Telefone:fmtTel(v.cliente_telefone),'Máquina':MAQUINAS[v.maquina],Bandeira:BANDEIRAS[v.bandeira],Parcelas:v.parcelas,'Valor no cartão':+v.valor_cartao,'Taxa %':+v.taxa_pct,'Valor da taxa':+v.valor_taxa,Pix:+v.valor_pix,'Custo %':c?+c.custo_pct:null,'Custo':c?+c.custo_valor:null,Lucro:c?+c.lucro:null,'Registrada por':v.registrado_email||'',Cancelada:v.cancelada_em?'Sim':'','Motivo do cancelamento':v.motivo_cancelamento||''}});
+  const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'Vendas');
+  XLSX.writeFile(wb,`Vendas ${S.vF.de} a ${S.vF.ate}.xlsx`);
+}
+function taxasHTML(){
+  if(!S.taxasDraft)S.taxasDraft={cobranca:{...S.cobranca},custo:{...S.custoTaxas},adicional:S.adicionais.cielo??0};
+  const d=S.taxasDraft,parc=Array.from({length:18},(_,i)=>i+1),num=n=>n==null?'':String(n).replace('.',',');
+  const tab=(titulo,prefix,mapa,nota)=>`<section class="panel"><div class="head"><h2>${titulo}</h2></div>${nota?`<div style="margin-bottom:10px">${nota}</div>`:''}<div class="scroll"><table class="taxas-t"><thead><tr><th>Parcelas</th>${Object.values(BANDEIRAS).map(b=>`<th>${b}</th>`).join('')}</tr></thead><tbody>${parc.map(n=>`<tr><td>${n}x</td>${Object.keys(BANDEIRAS).map(b=>{const k=(prefix?prefix+'|':'')+b+'|'+n;return `<td><input inputmode="decimal" aria-label="${BANDEIRAS[b]} ${n}x" data-tx="${prefix?'custo':'cobranca'}" data-k="${k}" value="${num(mapa[k])}"></td>`}).join('')}</tr>`).join('')}</tbody></table></div></section>`;
+  return `<section class="panel"><h2>Taxas do escritório</h2><p class="muted small" style="margin:6px 0 0">Valores em %. Mudanças valem para as próximas vendas; as já registradas não mudam.</p></section>
+  ${tab('Taxa cobrada do cliente','',d.cobranca)}
+  ${tab('Custo da maquineta PagBank','pagbank',d.custo)}
+  ${tab('Custo da maquineta Cielo','cielo',d.custo,`<div class="f" style="max-width:260px"><label for="tx-ad">Adicional repassado à Breno (somado em todas as taxas)</label><input id="tx-ad" data-tx="adicional" inputmode="decimal" value="${num(d.adicional)}"></div>`)}
+  ${S.err?`<div class="note bad">${esc(S.err)}</div>`:''}
+  <div class="savebar"><span></span><button class="btn primary" data-act="salvaTaxas">Salvar taxas</button></div>`;
+}
+async function salvaTaxas(){
+  const d=S.taxasDraft,ok=n=>typeof n==='number'&&n>=0&&n<100;
+  if(![...Object.values(d.cobranca),...Object.values(d.custo),d.adicional].every(ok)){S.err='Preencha todas as taxas com valores entre 0 e 99,99.';render();return}
+  const cob=Object.entries(d.cobranca).map(([k,pct])=>{const[bandeira,p]=k.split('|');return{bandeira,parcelas:+p,pct}});
+  const cus=Object.entries(d.custo).map(([k,pct])=>{const[maquina,bandeira,p]=k.split('|');return{maquina,bandeira,parcelas:+p,pct}});
+  const rs=await Promise.all([sb.from('taxas_cobranca').upsert(cob),sb.from('taxas_custo').upsert(cus),sb.from('maquinas').upsert({id:'cielo',adicional:d.adicional})]);
+  const e=rs.find(r=>r.error);
+  if(e){S.err=errMsg(e.error);render();return}
+  try{await carregaTaxas()}catch(x){}
+  S.err=null;S.taxasDraft=null;toast('Taxas salvas.');render();
+}
 function contaHTML(){
   return `<section class="panel conta form"><h2>Conta</h2>
     <p class="muted" style="margin:0">E-mail da conta: ${esc(S.sessao.user.email)}</p>
@@ -561,8 +737,7 @@ function contaHTML(){
 }
 function render(){
   const gerente=S.papel==='gerente';
-  if(gerente&&S.view!=='planilhas'&&S.view!=='conta')S.view='planilhas';
-  if(!gerente&&S.view==='planilhas')S.view='painel';
+  if(S.papel&&!VIEWS[S.papel].includes(S.view))S.view=VIEWS[S.papel][0];
   document.querySelectorAll('#nav button').forEach(b=>{b.setAttribute('aria-current',b.dataset.go===S.view);b.hidden=!!b.dataset.papel&&b.dataset.papel!==(gerente?'gerente':'dono')});
   $('#nav').hidden=S.acesso!=='ok';
   const app=$('#app');
@@ -570,7 +745,7 @@ function render(){
   if(!S.sessao){app.innerHTML=sb?loginHTML():'';return}
   if(S.acesso==='negado'){app.innerHTML=negadoHTML();return}
   if(S.acesso!=='ok'){app.innerHTML='';return}
-  app.innerHTML=S.view==='conta'?contaHTML():S.view==='planilhas'?planilhasHTML():S.view==='custos'?custosHTML():S.view==='historico'?historicoHTML():painelHTML();
+  app.innerHTML=S.view==='conta'?contaHTML():S.view==='planilhas'?planilhasHTML():S.view==='calculadora'?calcHTML():S.view==='vendas'?vendasHTML():S.view==='taxas'?taxasHTML():S.view==='custos'?custosHTML():S.view==='historico'?historicoHTML():painelHTML();
   if(S.view==='custos')resumoCustos();
   drawChart();
 }
@@ -633,7 +808,7 @@ new ResizeObserver(()=>{const b=$('#chart');if(b&&+b.dataset.w!==b.clientWidth)d
 /* ---------- eventos ---------- */
 function marcaSujo(){S.dirty=true;const s=$('#salvo');if(s)s.textContent='Alterações ainda não salvas.';resumoCustos()}
 function ir(v){
-  S.view=v;S.err=null;S.confirm=null;
+  S.view=v;S.err=null;S.confirm=null;S.cancelando=null;S.taxasDraft=null;
   try{location.hash=v}catch(e){}
   render();window.scrollTo(0,0);
 }
@@ -657,9 +832,27 @@ document.addEventListener('click',async e=>{
   if(a==='addFunc'){d.funcionarias.push({id:uid(),nome:'',salario:0,pct:0,base:'todos',clientes:[]});S.dirty=true;render();$(`#p-n-${d.funcionarias.at(-1).id}`)?.focus()}
   if(a==='rmFunc'){d.funcionarias=d.funcionarias.filter(f=>f.id!==b.dataset.id);S.dirty=true;render()}
   if(a==='salvaCustos')salvaCustos();
+  if(a==='registraVenda')registraVenda(b);
+  if(a==='abreCancel'){S.cancelando=to;render();$('#motivo')?.focus()}
+  if(a==='fechaCancel'){S.cancelando=null;render()}
+  if(a==='exportaVendas')exportaVendas();
+  if(a==='salvaTaxas')salvaTaxas();
+  if(a==='confirmaCancel'){
+    const m=$('#motivo').value.trim();if(!m){toast('Informe o motivo do cancelamento.');return}
+    const{error}=await sb.rpc('cancelar_venda',{p_id:to,p_motivo:m});
+    if(error){toast(error.code==='P0001'||error.code==='42501'?error.message:'Não foi possível cancelar. Tente de novo.');return}
+    S.cancelando=null;try{await carregaVendas()}catch(x){}toast('Venda cancelada.');render();
+  }
 });
 document.addEventListener('submit',async e=>{
   e.preventDefault();
+  if(e.target.id==='form-vendas'){
+    let de=$('#v-de').value,ate=$('#v-ate').value;if(!de||!ate)return;
+    if(de>ate)[de,ate]=[ate,de];
+    Object.assign(S.vF,{de,ate});S.cancelando=null;
+    try{await carregaVendas()}catch(x){toast('Não consegui buscar as vendas.')}
+    render();return;
+  }
   if(e.target.id==='form-periodo'){
     let de=$('#per-de').value,ate=$('#per-ate').value;
     if(!de||!ate)return;
@@ -690,12 +883,20 @@ document.addEventListener('submit',async e=>{
 });
 document.addEventListener('input',e=>{
   const t=e.target,d=S.draft;
+  if(t.dataset.calc&&t.tagName==='INPUT'){S.calc[t.dataset.calc]=t.value;const r=$('#calc-res');if(r)r.innerHTML=calcResultadoHTML();return}
+  if(t.dataset.tx){const x=S.taxasDraft,n=parseMoney(t.value);if(t.dataset.tx==='adicional')x.adicional=n;else x[t.dataset.tx][t.dataset.k]=n;return}
   if(t.dataset.fx){const f=d.fixos.find(x=>x.id===t.dataset.fx);f[t.dataset.k]=t.dataset.k==='valor'?(parseMoney(t.value)||0):t.value;marcaSujo()}
   else if(t.dataset.p&&t.tagName==='INPUT'){const f=d.funcionarias.find(x=>x.id===t.dataset.p);f[t.dataset.k]=t.dataset.k==='nome'?t.value:(parseMoney(t.value)||0);marcaSujo()}
   else if(t.id==='dias-func'){d.dias=parseInt(t.value,10)||0;marcaSujo()}
 });
 document.addEventListener('change',e=>{
   const t=e.target,d=S.draft;
+  if(t.dataset.calc&&t.tagName==='SELECT'){
+    S.calc[t.dataset.calc]=t.dataset.calc==='parcelas'?+t.value:t.value;
+    if(t.dataset.calc==='modo')$('#c-val-l').textContent=t.value==='pix'?'Valor que o cliente quer receber':'Valor passado no cartão';
+    $('#calc-res').innerHTML=calcResultadoHTML();return;
+  }
+  if(t.dataset.vf){S.vF[t.dataset.vf]=t.value;S.cancelando=null;render();return}
   if(t.id==='arquivo'){handleFile(t.files[0]);return}
   if(t.id==='sel-dia'){S.date=t.value;if(S.periodo==='custom')S.periodo='dia';render();return}
   if(t.id==='custos-mes'){
@@ -727,7 +928,7 @@ async function salvaCustos(){
   z.classList.toggle('over',tp==='dragover');
   if(tp==='drop'&&e.dataTransfer.files[0])handleFile(e.dataTransfer.files[0]);
 }));
-function rota(){const h=location.hash.slice(1);if(['painel','planilhas','custos','historico','conta'].includes(h)&&h!==S.view){S.view=h;render()}}
+function rota(){const h=location.hash.slice(1);if(['painel','planilhas','calculadora','vendas','taxas','custos','historico','conta'].includes(h)&&h!==S.view){S.view=h;render()}}
 addEventListener('hashchange',rota);
 rota();render();inicia();
 </script>
