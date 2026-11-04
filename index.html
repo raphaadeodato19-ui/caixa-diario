@@ -188,10 +188,11 @@ function cpfValido(c){
 }
 const BANDEIRAS={visa:'Visa',master:'Master',elo:'Elo/Banese/demais'},MAQUINAS={pagbank:'PagBank',cielo:'Cielo'};
 const VIEWS={gerente:['calculadora','vendas','planilhas','conta'],dono:['calculadora','vendas','painel','taxas','custos','historico','conta']};
-const FORMAS={pix:'Pix',especie:'Espécie'};
+const FORMAS={pix:'Pix',especie:'Espécie',misto:'Misto'};
+const fmtPagamento=v=>v.forma_pagamento==='misto'?`Misto: Pix ${brl(v.valor_em_pix)} + Espécie ${brl(v.valor_em_especie)}`:FORMAS[v.forma_pagamento]||'Não informada';
 const VENDEDORAS={'Escritório':['Ketley','Elen'],'Vendedoras':['Ester','Kelly','Maria']};
 const GRUPOS_META=[{id:'escritorio',nome:'Escritório',membros:['Ketley','Elen']},{id:'Ester',nome:'Ester',membros:['Ester']},{id:'Kelly',nome:'Kelly',membros:['Kelly']},{id:'Maria',nome:'Maria',membros:['Maria']}];
-const calcInicial=()=>({maquina:'pagbank',bandeira:'visa',parcelas:1,modo:'cartao',valor:'',nome:'',cpf:'',telefone:'',data:hojeISO(),vendedora:'',pagamento:''});
+const calcInicial=()=>({maquina:'pagbank',bandeira:'visa',parcelas:1,modo:'cartao',valor:'',nome:'',cpf:'',telefone:'',data:hojeISO(),vendedora:'',pagamento:'',emPix:''});
 const vfInicial=()=>({de:mesAtual()+'-01',ate:hojeISO(),maquina:'',bandeira:'',vendedora:'',pagamento:''});
 
 /* ---------- leitura da planilha ---------- */
@@ -643,6 +644,13 @@ function calcResultadoHTML(){
     ${r.lucro==null?`<div><span>= Cliente recebe</span><span>${brl(r.pix)}</span></div>`:`<div><span>= Lucro da Invest</span><span>${brl(r.lucro)}</span></div>`}
   </div>`;
 }
+function mistoTexto(){
+  const r=calcAtual(),p=parseMoney(S.calc.emPix);
+  if(r.pix==null)return'Digite primeiro o valor da venda.';
+  if(p==null||p<=0)return`Total a pagar ao cliente: ${brl(r.pix)}.`;
+  if(p>=r.pix)return`O valor em Pix precisa ser menor que ${brl(r.pix)}.`;
+  return`Em espécie: ${brl(r.pix-p)}`;
+}
 function calcHTML(){
   const k=S.calc,op=(o,v)=>Object.entries(o).map(([a,b])=>`<option value="${a}" ${a===v?'selected':''}>${b}</option>`).join('');
   const parc=Array.from({length:18},(_,i)=>i+1).map(n=>`<option value="${n}" ${n===+k.parcelas?'selected':''}>${n}x</option>`).join('');
@@ -660,6 +668,7 @@ function calcHTML(){
     <div class="cli-form">
       <div class="f"><label for="c-ven">Quem vendeu</label><select id="c-ven" data-calc="vendedora"><option value="">Selecione</option>${Object.entries(VENDEDORAS).map(([g,ns])=>`<optgroup label="${g}">${ns.map(n=>`<option value="${n}" ${n===k.vendedora?'selected':''}>${n}</option>`).join('')}</optgroup>`).join('')}</select></div>
       <div class="f"><label for="c-pag">Forma de pagamento</label><select id="c-pag" data-calc="pagamento"><option value="">Selecione</option>${Object.entries(FORMAS).map(([a,b])=>`<option value="${a}" ${a===k.pagamento?'selected':''}>${b}</option>`).join('')}</select></div>
+      <div class="f" id="c-misto" ${k.pagamento==='misto'?'':'hidden'}><label for="c-empix">Valor em Pix</label><input id="c-empix" data-calc="emPix" inputmode="decimal" autocomplete="off" placeholder="0,00" value="${esc(k.emPix)}"><span class="muted small" id="c-misto-esp">${mistoTexto()}</span></div>
       <div class="f"><label for="c-nome">Nome do cliente</label><input id="c-nome" data-calc="nome" autocomplete="off" value="${esc(k.nome)}"></div>
       <div class="f"><label for="c-cpf">CPF</label><input id="c-cpf" data-calc="cpf" inputmode="numeric" autocomplete="off" placeholder="000.000.000-00" value="${esc(k.cpf)}"></div>
       <div class="f"><label for="c-tel">Telefone com DDD</label><input id="c-tel" data-calc="telefone" inputmode="tel" autocomplete="off" placeholder="(79) 99999-9999" value="${esc(k.telefone)}"></div>
@@ -671,14 +680,14 @@ function calcHTML(){
 }
 async function registraVenda(btn){
   const k=S.calc,r=calcAtual(),cpf=soDigitos(k.cpf),tel=soDigitos(k.telefone);
-  const erro=r.cartao==null?'Informe o valor da venda.':!k.vendedora?'Selecione quem vendeu.':!k.pagamento?'Selecione a forma de pagamento.':!k.nome.trim()?'Informe o nome do cliente.':!cpfValido(cpf)?'CPF inválido. Confira os números.':![10,11].includes(tel.length)?'Telefone inválido. Informe o DDD e o número.':!k.data||k.data>hojeISO()?'Informe uma data de venda válida.':null;
+  const erro=r.cartao==null?'Informe o valor da venda.':!k.vendedora?'Selecione quem vendeu.':!k.pagamento?'Selecione a forma de pagamento.':k.pagamento==='misto'&&!((parseMoney(k.emPix)||0)>0&&parseMoney(k.emPix)<r.pix)?'No pagamento misto, informe um valor em Pix maior que zero e menor que o total que o cliente recebe.':!k.nome.trim()?'Informe o nome do cliente.':!cpfValido(cpf)?'CPF inválido. Confira os números.':![10,11].includes(tel.length)?'Telefone inválido. Informe o DDD e o número.':!k.data||k.data>hojeISO()?'Informe uma data de venda válida.':null;
   S.err=erro;if(erro){render();return}
   btn.disabled=true;
-  const{data,error}=await sb.rpc('registrar_venda',{p_data:k.data,p_maquina:k.maquina,p_bandeira:k.bandeira,p_parcelas:+k.parcelas,p_valor:r.valorBase,p_base:k.modo==='pix'?'cliente':'cartao',p_nome:k.nome.trim(),p_cpf:cpf,p_telefone:tel,p_vendedora:k.vendedora,p_pagamento:k.pagamento});
+  const{data,error}=await sb.rpc('registrar_venda',{p_data:k.data,p_maquina:k.maquina,p_bandeira:k.bandeira,p_parcelas:+k.parcelas,p_valor:r.valorBase,p_base:k.modo==='pix'?'cliente':'cartao',p_nome:k.nome.trim(),p_cpf:cpf,p_telefone:tel,p_vendedora:k.vendedora,p_pagamento:k.pagamento,p_valor_em_pix:k.pagamento==='misto'?parseMoney(k.emPix):null});
   if(error){S.err=error.code==='P0001'||error.code==='42501'?error.message:'Não foi possível registrar. Verifique a conexão e tente de novo.';render();return}
-  Object.assign(S.calc,{valor:'',nome:'',cpf:'',telefone:'',vendedora:'',pagamento:''});
+  Object.assign(S.calc,{valor:'',nome:'',cpf:'',telefone:'',vendedora:'',pagamento:'',emPix:''});
   try{await carregaVendas();await carregaMetas()}catch(e){}
-  toast(`Venda registrada: ${brl(data.valor_pix)} em ${FORMAS[data.forma_pagamento]}.`);render();
+  toast(`Venda registrada: ${brl(data.valor_pix)} ao cliente (${fmtPagamento(data)}).`);render();
 }
 function vendasFiltradas(){const f=S.vF;return S.vendas.filter(v=>(!f.maquina||v.maquina===f.maquina)&&(!f.bandeira||v.bandeira===f.bandeira)&&(!f.vendedora||v.vendedora===f.vendedora)&&(!f.pagamento||v.forma_pagamento===f.pagamento))}
 function vendasHTML(){
@@ -687,7 +696,7 @@ function vendasHTML(){
   const op=(o,v)=>`<option value="">Todas</option>`+Object.entries(o).map(([a,b])=>`<option value="${a}" ${a===v?'selected':''}>${b}</option>`).join('');
   const linhas=lista.map(v=>{
     const c=umDe(v.vendas_custo),cf=umDe(v.vendas_cpf),cancelada=!!v.cancelada_em,cols=dono?14:12;
-    const lin=`<tr class="${cancelada?'cancelada':''}"><td>${fmtDia(v.data)}</td><td class="left">${esc(v.cliente_nome)}<br><span class="muted small">${esc(fmtTel(v.cliente_telefone))}</span></td><td class="left">${esc(dono&&cf?fmtCpf(cf.cpf):v.cpf_mascarado)}</td><td class="left">${MAQUINAS[v.maquina]||''}</td><td class="left">${BANDEIRAS[v.bandeira]||''}</td><td class="left">${esc(v.vendedora||'Não informada')}</td><td>${v.parcelas}x</td><td>${brl(v.valor_cartao)}</td><td>${fmtPct(v.taxa_pct)}</td><td>${brl(v.valor_pix)}</td><td class="left">${FORMAS[v.forma_pagamento]||'Não informada'}</td>${dono?`<td>${c?brl(c.custo_valor):''}</td><td><b>${c?brl(c.lucro):''}</b></td>`:''}<td class="nota">${cancelada?'':dono?`<button class="btn small" data-act="abreCancel" data-to="${v.id}">Cancelar</button>`:`<span class="muted small">${esc(v.registrado_email||'')}</span>`}</td></tr>`;
+    const lin=`<tr class="${cancelada?'cancelada':''}"><td>${fmtDia(v.data)}</td><td class="left">${esc(v.cliente_nome)}<br><span class="muted small">${esc(fmtTel(v.cliente_telefone))}</span></td><td class="left">${esc(dono&&cf?fmtCpf(cf.cpf):v.cpf_mascarado)}</td><td class="left">${MAQUINAS[v.maquina]||''}</td><td class="left">${BANDEIRAS[v.bandeira]||''}</td><td class="left">${esc(v.vendedora||'Não informada')}</td><td>${v.parcelas}x</td><td>${brl(v.valor_cartao)}</td><td>${fmtPct(v.taxa_pct)}</td><td>${brl(v.valor_pix)}</td><td class="left">${fmtPagamento(v)}</td>${dono?`<td>${c?brl(c.custo_valor):''}</td><td><b>${c?brl(c.lucro):''}</b></td>`:''}<td class="nota">${cancelada?'':dono?`<button class="btn small" data-act="abreCancel" data-to="${v.id}">Cancelar</button>`:`<span class="muted small">${esc(v.registrado_email||'')}</span>`}</td></tr>`;
     const nota=cancelada?`<tr><td class="nota muted small" colspan="${cols}" style="text-align:left;white-space:normal">Cancelada${v.cancelada_por?' por '+esc(v.cancelada_por):''}: ${esc(v.motivo_cancelamento||'')}</td></tr>`:'';
     const canc=S.cancelando===v.id?`<tr><td colspan="${cols}" style="text-align:left;white-space:normal"><div class="filtros"><div class="f" style="max-width:none;flex:1 1 220px"><label for="motivo">Motivo do cancelamento</label><input id="motivo"></div><button class="btn small danger" data-act="confirmaCancel" data-to="${v.id}">Confirmar cancelamento</button><button class="btn small" data-act="fechaCancel">Voltar</button></div></td></tr>`:'';
     return lin+nota+canc;
@@ -705,8 +714,8 @@ function vendasHTML(){
   <section class="panel"><div class="resumo">
       <div><span class="muted small">Vendas</span><b>${ativas.length}</b></div>
       <div><span class="muted small">Valor no cartão</span><b>${brl(soma(v=>v.valor_cartao))}</b></div>
-      <div><span class="muted small">Pago em Pix</span><b>${brl(soma(v=>v.forma_pagamento==='pix'?v.valor_pix:0))}</b></div>
-      <div><span class="muted small">Pago em espécie</span><b>${brl(soma(v=>v.forma_pagamento==='especie'?v.valor_pix:0))}</b></div>
+      <div><span class="muted small">Pago em Pix</span><b>${brl(soma(v=>v.valor_em_pix))}</b></div>
+      <div><span class="muted small">Pago em espécie</span><b>${brl(soma(v=>v.valor_em_especie))}</b></div>
       ${ativas.some(v=>!v.forma_pagamento)?`<div><span class="muted small">Pagamento não informado</span><b>${brl(soma(v=>v.forma_pagamento?0:v.valor_pix))}</b></div>`:''}
       ${dono?`<div><span class="muted small">Lucro</span><b>${brl(soma(v=>umDe(v.vendas_custo)?.lucro))}</b></div>`:''}
     </div></section>
@@ -758,7 +767,7 @@ function comparaHTML(){
     <div class="scroll">${rows?`<table><thead><tr><th>Data</th><th>Lucro das vendas</th><th>Linhas ESCRITÓRIO</th><th>Diferença</th></tr></thead><tbody>${rows}</tbody></table>`:'<p class="muted" style="margin:0">Nada para comparar nessas datas.</p>'}</div></section>`;
 }
 function exportaVendas(){
-  const rows=vendasFiltradas().map(v=>{const c=umDe(v.vendas_custo),cf=umDe(v.vendas_cpf);return{Data:fmtDia(v.data),Cliente:v.cliente_nome,CPF:cf?fmtCpf(cf.cpf):v.cpf_mascarado,Telefone:fmtTel(v.cliente_telefone),'Máquina':MAQUINAS[v.maquina],Bandeira:BANDEIRAS[v.bandeira],'Quem vendeu':v.vendedora||'Não informada',Parcelas:v.parcelas,'Valor no cartão':+v.valor_cartao,'Taxa %':+v.taxa_pct,'Valor da taxa':+v.valor_taxa,'Calculada sobre':v.base_calculo==='cliente'?'Valor do cliente':'Valor no cartão','Cliente recebe':+v.valor_pix,'Forma de pagamento':FORMAS[v.forma_pagamento]||'Não informada','Custo %':c?+c.custo_pct:null,'Custo':c?+c.custo_valor:null,Lucro:c?+c.lucro:null,'Registrada por':v.registrado_email||'',Cancelada:v.cancelada_em?'Sim':'','Motivo do cancelamento':v.motivo_cancelamento||''}});
+  const rows=vendasFiltradas().map(v=>{const c=umDe(v.vendas_custo),cf=umDe(v.vendas_cpf);return{Data:fmtDia(v.data),Cliente:v.cliente_nome,CPF:cf?fmtCpf(cf.cpf):v.cpf_mascarado,Telefone:fmtTel(v.cliente_telefone),'Máquina':MAQUINAS[v.maquina],Bandeira:BANDEIRAS[v.bandeira],'Quem vendeu':v.vendedora||'Não informada',Parcelas:v.parcelas,'Valor no cartão':+v.valor_cartao,'Taxa %':+v.taxa_pct,'Valor da taxa':+v.valor_taxa,'Calculada sobre':v.base_calculo==='cliente'?'Valor do cliente':'Valor no cartão','Cliente recebe':+v.valor_pix,'Forma de pagamento':FORMAS[v.forma_pagamento]||'Não informada','Valor em Pix':v.valor_em_pix==null?null:+v.valor_em_pix,'Valor em espécie':v.valor_em_especie==null?null:+v.valor_em_especie,'Custo %':c?+c.custo_pct:null,'Custo':c?+c.custo_valor:null,Lucro:c?+c.lucro:null,'Registrada por':v.registrado_email||'',Cancelada:v.cancelada_em?'Sim':'','Motivo do cancelamento':v.motivo_cancelamento||''}});
   const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),'Vendas');
   XLSX.writeFile(wb,`Vendas ${S.vF.de} a ${S.vF.ate}.xlsx`);
 }
@@ -944,7 +953,7 @@ document.addEventListener('submit',async e=>{
 });
 document.addEventListener('input',e=>{
   const t=e.target,d=S.draft;
-  if(t.dataset.calc&&t.tagName==='INPUT'){S.calc[t.dataset.calc]=t.value;const r=$('#calc-res');if(r)r.innerHTML=calcResultadoHTML();return}
+  if(t.dataset.calc&&t.tagName==='INPUT'){S.calc[t.dataset.calc]=t.value;const r=$('#calc-res');if(r)r.innerHTML=calcResultadoHTML();const me=$('#c-misto-esp');if(me)me.textContent=mistoTexto();return}
   if(t.dataset.tx){const x=S.taxasDraft,n=parseMoney(t.value);if(t.dataset.tx==='adicional')x.adicional=n;else x[t.dataset.tx][t.dataset.k]=n;return}
   if(t.dataset.meta){S.metaDraft[t.dataset.meta]=t.value;return}
   if(t.dataset.fx){const f=d.fixos.find(x=>x.id===t.dataset.fx);f[t.dataset.k]=t.dataset.k==='valor'?(parseMoney(t.value)||0):t.value;marcaSujo()}
@@ -956,7 +965,8 @@ document.addEventListener('change',e=>{
   if(t.dataset.calc&&t.tagName==='SELECT'){
     S.calc[t.dataset.calc]=t.dataset.calc==='parcelas'?+t.value:t.value;
     if(t.dataset.calc==='modo')$('#c-val-l').textContent=t.value==='pix'?'Valor que o cliente quer receber':'Valor passado no cartão';
-    $('#calc-res').innerHTML=calcResultadoHTML();return;
+    $('#calc-res').innerHTML=calcResultadoHTML();
+    $('#c-misto').hidden=S.calc.pagamento!=='misto';$('#c-misto-esp').textContent=mistoTexto();return;
   }
   if(t.id==='meta-mes'){if(!t.value)return;S.metaMes=t.value;S.metaDraft={};carregaMetas().catch(()=>toast('Não consegui buscar as metas.')).finally(render);return}
   if(t.dataset.vf){S.vF[t.dataset.vf]=t.value;S.cancelando=null;render();return}
